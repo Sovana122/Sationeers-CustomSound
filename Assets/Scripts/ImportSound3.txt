@@ -1,0 +1,916 @@
+using HarmonyLib;
+using StationeersMods.Interface;
+using System;
+using System.Linq;
+using System.Collections.Generic;
+using System.Collections;
+using System.Threading.Tasks;
+using System.Reflection;
+using System.Reflection.Emit;
+using Assets.Scripts.Objects;
+using Assets.Scripts.Objects.Electrical;
+using Assets.Scripts.Sound;
+using Assets.Scripts.Serialization;
+using Assets.Scripts.UI;
+using UnityEngine;
+using UnityEngine.Networking;
+using UnityEngine.SceneManagement;
+using TMPro;
+using ImportSound.AudioLibSpace;
+using Audio;
+using Sound;
+
+namespace ImportSound.Mod
+{
+
+    public class MainThreadDispatcher : MonoBehaviour
+    {
+        private static readonly Queue<Action> _executionQueue = new Queue<Action>();
+
+        public static void Enqueue(Action action)
+        {
+            lock (_executionQueue)
+            {
+                _executionQueue.Enqueue(action);
+            }
+        }
+
+        void Update()
+        {
+            if (_executionQueue.Count > 0)
+                Debug.Log($"<color=cyan>MainThreadDispatcher executing {_executionQueue.Count} actions</color>");
+            lock (_executionQueue)
+            {
+                while (_executionQueue.Count > 0)
+                {
+                    _executionQueue.Dequeue().Invoke();
+                }
+            }
+        }
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+        static void Initialize()
+        {
+            Debug.Log("<color=cyan>MainThreadDispatcher initializing...</color>");
+            var obj = new GameObject("MainThreadDispatcher");
+            UnityEngine.Object.DontDestroyOnLoad(obj);
+            obj.AddComponent<MainThreadDispatcher>();
+        }
+    }
+
+    
+
+
+    [StationeersMod("ImportSoundClass", "ImportSoundClass [StationeersMods]", "0.2.4657.21547.1")]
+    public class ImportSoundClass : ModBehaviour
+    {
+        public static bool IsAudioClipReady = false;
+
+        public static void CreateAudioClipInMainThread()
+        {
+            
+
+            // On place la création réelle sur le thread principal
+            MainThreadDispatcher.Enqueue(() =>
+            {
+                if (AudioLib.AudioClipManager.audioHolder == null)
+                {
+                    AudioLib.AudioClipManager.audioHolder = new GameObject("ImportedAudioHolder");
+                    UnityEngine.Object.DontDestroyOnLoad(AudioLib.AudioClipManager.audioHolder);
+                    Debug.Log("<color=cyan>AudioHolder initialized in Awake.</color>");
+                }
+                if (AudioLib.AudioClipManager.audioHolder == null)
+                {
+                    AudioLib.printErrorLog("Echec init  audioHolder");
+                    return;
+                }
+                AudioSource audioSource = AudioLib.AudioClipManager.audioHolder.GetComponent<AudioSource>();
+
+                if (audioSource == null)
+                {
+                    audioSource = AudioLib.AudioClipManager.audioHolder.AddComponent<AudioSource>();
+                    Debug.Log("<color=cyan>AudioSource added to ImportedAudioHolder.</color>");
+                }
+
+                Debug.Log("<color=cyan>Callback enqueued, now executing...</color>");
+                Assembly assembly = System.Reflection.Assembly.GetExecutingAssembly();
+                string modPath = System.IO.Path.GetDirectoryName(assembly.Location);
+                string filePath = modPath + "/GameData/AlertSounds/alarm_4min.mp3";
+                using (UnityWebRequest request = UnityWebRequestMultimedia.GetAudioClip(filePath, AudioType.MPEG))
+                {
+                    var operation = request.SendWebRequest();
+
+                    while (!operation.isDone) { }
+
+                    if (request.result != UnityWebRequest.Result.Success)
+                    {
+                        AudioLib.printErrorLog($"ERROR LOADING SOUND : {request.error}");
+                        return;
+                    }
+                    AudioClip audioClipLoaded = DownloadHandlerAudioClip.GetContent(request);
+                    audioClipLoaded.name = System.IO.Path.GetFileNameWithoutExtension(filePath);
+                    audioClipLoaded.hideFlags = HideFlags.DontUnloadUnusedAsset;
+
+                    audioClipLoaded.LoadAudioData();
+                    while (audioClipLoaded.loadState == AudioDataLoadState.Loading) { }
+                    if (audioClipLoaded.loadState != AudioDataLoadState.Loaded)
+                    {
+                        Debug.LogError($"AudioClip failed to load: {audioClipLoaded.loadState}");
+                        return;
+                    }
+                    Debug.Log(audioClipLoaded.loadState);
+
+                    // On copie les données dans un tableau
+                    float[] data = new float[audioClipLoaded.samples * audioClipLoaded.channels];
+                    audioClipLoaded.GetData(data, 0);
+
+                    // Création du clip en RAM
+                    AudioClip newClip = AudioClip.Create(
+                        audioClipLoaded.name + "_copy",
+                        audioClipLoaded.samples,
+                        audioClipLoaded.channels,
+                        audioClipLoaded.frequency,
+                        false
+                    );
+                    newClip.SetData(data, 0);
+
+
+                    //AudioLib.AudioClipManager.AddClip("myAlarm_4min", newClip);
+                    AudioLib.printAudioClip(newClip);
+
+                    if (AudioLib.AudioClipManager.audioHolder == null)
+                    {
+                        Debug.LogError("AudioLib.AudioClipManager.audioHolder is null in patch!");
+                        return;
+                    }
+                    if (audioSource == null)
+                    {
+                        Debug.LogError("audioSource from AudioLib.AudioClipManager.audioHolder  is null in patch!");
+                        return;
+                    }
+                    audioSource.clip = newClip;
+                    if (audioSource.clip == null)
+                    {
+                        Debug.LogError("AudioLib.AudioClipManager.audioHolder.clip is null in patch!");
+                    }
+                    else
+                    {
+                        AudioLib.printAudioClip(audioSource.clip);
+                    }
+                    IsAudioClipReady = true;
+                    AudioLib.printGreenLog("myAlarm_4min imported");
+                
+
+                    /*
+                    AudioLib.AudioClipManager.AddClip("myAlarm_4min", audioClipLoaded);
+                    */
+                }
+
+                
+            });
+        }
+
+        public override void OnLoaded(ContentHandler contentHandler)
+        {
+            try
+            {
+                AudioLib.printGreenLog("IMPORTSOUND START");
+
+                if (AudioLib.AudioClipManager.audioHolder == null)
+                {
+                    AudioLib.AudioClipManager.audioHolder = new GameObject("ImportedAudioHolder");
+                    UnityEngine.Object.DontDestroyOnLoad(AudioLib.AudioClipManager.audioHolder);
+                    Debug.Log("<color=cyan>AudioHolder initialized in Awake.</color>");
+                }
+
+                if (GameObject.Find("MainThreadDispatcher") == null)
+                {
+                    var obj = new GameObject("MainThreadDispatcher");
+                    UnityEngine.Object.DontDestroyOnLoad(obj);
+                    obj.AddComponent<MainThreadDispatcher>();
+                    Debug.Log("MainThreadDispatcher manually initialized in OnLoaded.");
+                }
+
+                CreateAudioClipInMainThread();
+
+                var harmony = new Harmony("ImportSound");
+                harmony.PatchAll();
+
+                AudioLib.printGreenLog("IMPORTSOUND END");
+            }
+            catch (Exception ex)
+            {
+                AudioLib.printErrorLog($"IMPORTSOUND ERROR : {ex.Message}\n{ex.StackTrace}");
+            }
+        }
+    }
+
+    
+
+
+    /*
+    [HarmonyPatch(typeof(GameAudioSource))]
+    [HarmonyPatch("Play")]
+    [HarmonyPatch(new Type[] { typeof(GameAudioClipsData), typeof(float), typeof(float), typeof(float), typeof(bool) })]
+    public static class GameAudioSource_Play_Patch
+    {
+        // Prefix exécuté avant la méthode d'origine
+        static void Prefix(GameAudioClipsData clipData, float volumeMultiplier, float pitchMultiplier, float fadeCurveTracker, bool pregame)
+        {
+            if (clipData?.Name != null && (clipData.Name.ToLower().Contains("pollutant") || clipData.Name.ToLower().Contains("mode") || clipData.Name.ToLower().Contains("alarm")))
+            {
+                AudioLib.printGreenLog("--");
+                Debug.Log($"[Harmony] Play called with clipData: {clipData?.Name}");
+                Debug.Log($"[Harmony] Stack Trace: {Environment.StackTrace}");
+            }
+        }
+    }*/
+
+        /*
+        [HarmonyPatch(typeof(Speaker), "InputAudio")]
+        public static class Speaker_InputAudio_Patch
+        {
+            static bool Prefix(int clipsDataHash, float volumeMultiplier, float pitchMultiplier, ref PooledAudioSource __result)
+            {
+                AudioLib.printCyanLog($"InputAudio called with clipsDataHash: {clipsDataHash}");
+                return true;
+            }
+        }
+        [HarmonyPatch(typeof(Speaker), "InputAudioScheduled")]
+        public static class Speaker_InputAudioScheduled_Patch
+        {
+            static bool Prefix(int clipsDataHash, double startTime, double endTime, float volumeMultiplier = 1f, float pitchMultiplier = 1f, int attack = 0, int release = 0)
+            {
+                AudioLib.printCyanLog($"InputAudioScheduled called with clipsDataHash: {clipsDataHash}");
+                return true;
+            }
+        }
+        [HarmonyPatch]
+        public static class AudioManagerPlayPrefix
+        {
+            // Méthode pour trouver dynamiquement toutes les méthodes "Play" dans AudioManager
+            static IEnumerable<MethodBase> TargetMethods()
+            {
+                // Récupère toutes les méthodes de la classe AudioManager
+                return typeof(AudioManager).GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                    .Where(method => method.Name.Contains("Play")); // Filtre les méthodes contenant "Play"
+            }
+
+            // Prefix générique pour toutes les méthodes ciblées
+            static void Prefix(MethodBase __originalMethod, params object[] __args)
+            {
+                // Affiche le nom de la méthode
+                Debug.Log($"[AudioManager] Called method: {__originalMethod.Name}");
+
+                // Recherche du paramètre clipsDataHash
+                foreach (var arg in __args)
+                {
+                    if (arg is int clipsDataHash)
+                    {
+                        Debug.Log($"[AudioManager] clipsDataHash: {clipsDataHash}");
+                        break;
+                    }
+                }
+            }
+        }*/
+        /*
+        [HarmonyPatch(typeof(Interactable))]
+        public class InteractablePatch
+        {
+            // Patch de la méthode PlayInteractableSounds
+            [HarmonyPostfix]
+            [HarmonyPatch("PlayInteractableSounds")]
+            public static void Postfix_PlayInteractableSounds(Interactable __instance)
+            {
+                if (__instance.Parent is Speaker speaker)
+                {
+                    AudioLib.printObj(__instance);
+                    foreach (GameAudioEvent audioEvent in __instance.AssociatedAudioEvents)
+                    {
+                        AudioLib.printObj(audioEvent);
+                    }
+                }
+            }
+        }*/
+        /*
+        [HarmonyPatch(typeof(AudioManager), "ManagerAwake")]
+        public class AudioManagerAwakePatchPrefix
+        {
+            static bool Prefix()
+            {
+                try
+                {
+                    AudioLib.printGreenLog("START PREFIX");
+
+                    AudioManager audioManagerInstance = AudioManager.Instance;
+                    */
+        /*
+        AudioLib.isGameAudioClipsDataNameInPooled("Alarm1");
+        AudioLib.isGameAudioClipsDataNameInClipsDataHashLookup("Alarm1");
+        AudioLib.isGameAudioClipsDataNameInClipsDataSoundAlertLookup("Alarm1");
+        */
+
+        /*
+        if (audioManagerInstance == null)
+        {
+            AudioLib.printErrorLog("AudioManager instance is null.");
+            return false;
+        }
+
+        Assembly assembly = System.Reflection.Assembly.GetExecutingAssembly();
+        string modPath = System.IO.Path.GetDirectoryName(assembly.Location);
+        string filePath = modPath + "/GameData/AlertSounds/alarm_4min.mp3";
+
+        AudioClip audioClipLoaded = AudioLib.AudioClipManager.GetClip("myAlarm_4min");
+        if (audioClipLoaded != null)
+        {*/
+        /* add AlarmCustom654654654
+        GameAudioClipsData customGameAudioClipsData = new GameAudioClipsData();
+        customGameAudioClipsData.Clips.Add(audioClipLoaded);
+        //customGameAudioClipsData.ClipNames.Add(filePath);
+        customGameAudioClipsData.Name = "AlarmCustom654654654";
+        customGameAudioClipsData.NameHash = Animator.StringToHash("AlarmCustom654654654");
+        customGameAudioClipsData.Looping = true;
+        customGameAudioClipsData.ChannelName = "Large";
+
+        AudioData customAudioData = new AudioData();
+        customAudioData.AudioClipsData.Add(customGameAudioClipsData);
+        AudioLib.addAudioDataInPooled(customAudioData);
+
+        //ancien add
+        //AudioManager.Instance.LoadAudioData(new AudioData[] { customAudioData });
+        */
+        /*
+        AudioLib.removeGameAudioClipsDataNameInPooled("Alarm1");
+        GameAudioClipsData customGameAudioClipsData = new GameAudioClipsData();
+        customGameAudioClipsData.Clips.Add(audioClipLoaded);
+        customGameAudioClipsData.Name = "Alarm1";
+        customGameAudioClipsData.NameHash = Animator.StringToHash("Alarm1");
+        customGameAudioClipsData.Looping = true;
+        customGameAudioClipsData.ChannelName = "Large";
+        customGameAudioClipsData.SoundAlert = SoundAlert.Alarm1;
+
+        AudioData customAudioData = new AudioData();
+        customAudioData.AudioClipsData.Add(customGameAudioClipsData);
+
+        AudioLib.addAudioDataInPooled(customAudioData);
+        //ancien add
+        //AudioManager.Instance.LoadAudioData(new AudioData[] { customAudioData });
+
+        //AudioLib.isGameAudioClipsDataNameInPooled("Alarm1");
+        //AudioLib.isGameAudioClipsDataNameInClipsDataHashLookup("Alarm1");
+        //AudioLib.isGameAudioClipsDataNameInClipsDataSoundAlertLookup("Alarm1");                        
+    }
+    else
+    {
+        AudioLib.printErrorLog($"audioClipLoaded NULL !");
+    }
+
+    //original
+    AudioLib.ExecuteBaseManagerAwake();
+    AudioLib.ExecuteDontDestroyOnLoadBaseGameObject();
+    GameObject baseGameObject = AudioLib.GetBasegameObjectObj();
+    GameAudioSource.OcclusionLayerMask = LayerMask.GetMask(new string[]
+    {
+        "BlockSound",
+        "Terrain"
+    });
+    GameAudioSource.TerrainLayer = LayerMask.NameToLayer("Terrain");
+    audioManagerInstance.LoadAudioData(audioManagerInstance.pooledAudioData);
+    audioManagerInstance.LoadMixerGroups();
+    AudioLib.ExecuteAudioTickUniTask();
+    AudioLib.ExecuteOcclusionTickUniTask();
+    audioManagerInstance.environmentalAudioHandler.Initialize();
+    audioManagerInstance.atmosphericAudioHandler.Initialize();
+    AudioPool.InitializeAllPools(audioManagerInstance.AudioSourcePrefab);
+    DynamicThing.InitCollisionSoundMap();
+    //end original
+
+    //AudioLib.isGameAudioClipsDataNameInPooled("Alarm1");
+    //AudioLib.isGameAudioClipsDataNameInClipsDataHashLookup("Alarm1");
+    //AudioLib.isGameAudioClipsDataNameInClipsDataSoundAlertLookup("Alarm1");
+
+
+    AudioLib.printGreenLog("END PREFIX");
+    AudioLib.play("Alarm2");
+    return false;
+
+}
+catch (Exception ex)
+{
+    AudioLib.printErrorLog($"ERROR IN PREFIX : {ex.Message}\n{ex.StackTrace}");
+    return false;
+}
+
+}
+}
+
+[HarmonyPatch(typeof(AudioManager), "ManagerAwake")]
+public class AudioManagerAwakePatchPostfix
+{
+static void Postfix()
+{
+try
+{
+    return;
+    AudioLib.printGreenLog("START POSTFIX");
+    AudioLib.isGameAudioClipsDataNameInPooled("Alarm1");
+    AudioLib.isGameAudioClipsDataNameInClipsDataHashLookup("Alarm1");
+    AudioLib.isGameAudioClipsDataNameInClipsDataSoundAlertLookup("Alarm1");
+    AudioLib.printGreenLog("END POSTFIX");
+}
+catch (Exception ex)
+{
+    AudioLib.printErrorLog($"ERROR IN POSTFIX : {ex.Message}\n{ex.StackTrace}");
+}
+}
+}*/
+
+    [HarmonyPatch(typeof(Thing), "Awake")]
+    public class ThingAwakePatchPostfix
+    {
+        static void Postfix(Thing __instance)
+        {
+            try
+            {
+                if (__instance is Speaker speakerInstance)
+                {
+                    string threadInfo = System.Threading.Thread.CurrentThread.IsBackground ? "Background Thread" : "Main Thread";
+                    string sceneName = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+                    string contextInfo = $"[Context Info] test2\n" +
+                                         $"- Thread: {threadInfo}\n" +
+                                         $"- Scene: {sceneName}\n" +
+                                         $"- IsPlaying: {UnityEngine.Application.isPlaying}\n" +
+                                         $"- IsFocused: {UnityEngine.Application.isFocused}\n" +
+                                         $"- Time: {Time.time}s";
+
+                    Debug.Log(contextInfo);
+
+                    //AudioLib.printGreenLog("Interactables : " + __instance.Interactables.Count.ToString());
+                    /*
+                    AudioClip importSoundClip = AudioLib.AudioClipManager.GetClip("myAlarm_4min");
+                    if (importSoundClip == null)
+                    {
+                        Debug.LogError("ImportSound clip not found!");
+                        return;
+                    }
+                    AudioLib.printAudioClip(importSoundClip);*/
+                    /*
+                    if (AudioLib.TempStorage.ImportedClip == null)
+                    {
+                        Debug.LogError("TempStorage.ImportedClip is null in patch!");
+                    }
+                    else
+                    {
+                        Debug.Log($"TempStorage.ImportedClip found: {AudioLib.TempStorage.ImportedClip.name}, Length: {AudioLib.TempStorage.ImportedClip.length}, Samples: {AudioLib.TempStorage.ImportedClip.samples}");
+                    }*/
+                    if (!ImportSoundClass.IsAudioClipReady)
+                    {
+                        Debug.LogWarning("AudioClip is not ready yet.");
+                        return;  // Ou attendre jusqu'à ce que le clip soit prêt
+                    }
+                    if (AudioLib.AudioClipManager.audioHolder == null)
+                    {
+                        Debug.LogError("AudioLib.AudioClipManager.audioHolder is null in patch!");
+                    }
+                    AudioSource audioSource = AudioLib.AudioClipManager.audioHolder.GetComponent<AudioSource>();
+                    if (audioSource.clip == null)
+                    {
+                        Debug.LogError("AudioLib.AudioClipManager.audioHolder.clip is null in patch!");
+                    }
+                    else
+                    {
+                        AudioLib.printAudioClip(audioSource.clip);
+                    }
+
+                    AudioLib.printGreenLog("END POSTFIX AWAKE SPEAKER");
+                    return;
+
+                    GameAudioEvent alarm1Event = null;
+                    foreach (var audioEvent in __instance.Interactables[4].AssociatedAudioEvents)
+                    {
+                        if (audioEvent.Name == "Alarm1")
+                        {
+                            alarm1Event = audioEvent;
+                        }
+                    }
+                    if (alarm1Event == null)
+                    {
+                        Debug.LogError("alarm1Event clip not found!");
+                        return;
+                    }
+                    AudioLib.printObj(alarm1Event);
+                    AudioLib.printAudioClip(alarm1Event.ClipsData.Clips[0]);
+                    GameAudioEvent intruderEvent = null;
+                    foreach (var audioEvent in __instance.Interactables[4].AssociatedAudioEvents)
+                    {
+                        if (audioEvent.Name == "IntruderAlert")
+                        {
+                            intruderEvent = audioEvent;
+                        }
+                    }
+                    if (intruderEvent == null)
+                    {
+                        Debug.LogError("intruderEvent clip not found!");
+                        return;
+                    }
+                    AudioLib.printObj(intruderEvent);
+                    AudioLib.printAudioClip(intruderEvent.ClipsData.Clips[0]);
+                    intruderEvent.ClipsData.Clips[0] = alarm1Event.ClipsData.Clips[0];
+                    AudioLib.printObj(intruderEvent);
+                    AudioLib.printAudioClip(intruderEvent.ClipsData.Clips[0]);
+
+                    
+
+                    GameAudioEvent newEvent = new GameAudioEvent
+                    {
+                        Name = intruderEvent.Name,
+                        NameHash = intruderEvent.NameHash,
+                        ClipsData = new GameAudioClipsData
+                        {
+                            Clips = new List<AudioClip> { alarm1Event.ClipsData.Clips[0] },
+                            //IsLooping = intruderEvent.ClipsData.IsLooping,
+                            ChannelName = intruderEvent.ClipsData.ChannelName,
+                            SoundAlert = intruderEvent.ClipsData.SoundAlert
+                        },
+                        StopIfInvalid = intruderEvent.StopIfInvalid,
+                        //IsValid = true
+                    };
+                    //AudioLib.printObj(intruderEvent);
+                    //AudioLib.printAudioClip(intruderEvent.ClipsData.Clips[0]);
+
+                    for (int i = 0; i < __instance.Interactables[4].AssociatedAudioEvents.Count; i++)
+                    {
+                        __instance.Interactables[4].AssociatedAudioEvents[i] = intruderEvent;
+                    }
+
+                    AudioLib.printObj(__instance.Interactables[4].AssociatedAudioEvents[0]);
+                    AudioLib.printAudioClip(__instance.Interactables[4].AssociatedAudioEvents[0].ClipsData.Clips[0]);
+
+                    AudioLib.printGreenLog("END POSTFIX AWAKE SPEAKER");
+                    return;
+
+
+                    /*
+                    var test = AudioLib.getInteractables(__instance);
+                    if (test != null)
+                    {
+                        AudioLib.printErrorLog("Interactables not null");
+                    }
+                    if (test == null)
+                    {
+                        AudioLib.printGreenLog("Interactables null");
+                    })*/
+                    /*
+                    if (AudioLib.getModeStrings().Count() == 46)
+                    {
+                        AudioLib.printObj(AudioLib.getModeStrings());
+                        AudioLib.printGreenLog("Count modeStrings : " + AudioLib.getModeStrings().Count().ToString());
+                        AudioLib.printObj(AudioLib.getModeHashes());
+                        AudioLib.printGreenLog("Count ModeHashes : " + AudioLib.getModeHashes().Count().ToString());
+                        AudioLib.removeToModeStrings(AudioLib.getModeStrings().Count() - 1);
+                        AudioLib.ReInitModeHashes();
+                        int secondToLast = AudioLib.getModeHashes()[Speaker.ModeHashes.Length - 2];
+                        int[] modeHashToModif = AudioLib.getModeHashes();
+                        for (int i = 0; i < modeHashToModif.Length; i++)
+                        {
+                            modeHashToModif[i] = secondToLast;
+                        }
+                        AudioLib.reassignModeHashes(modeHashToModif);
+                        AudioLib.printObj(AudioLib.getModeStrings());
+                        AudioLib.printGreenLog("Count modeStrings : " + AudioLib.getModeStrings().Count().ToString());
+                        AudioLib.printObj(AudioLib.getModeHashes());
+                        AudioLib.printGreenLog("Count ModeHashes : " + AudioLib.getModeHashes().Count().ToString());
+                    }*/
+
+
+                    Dictionary<int, GameAudioEvent>  audioEventLookup = AudioLib.getaudioEventLookup((Thing)__instance);
+                    AudioLib.printGreenLog("Count audioEventLookup : " + audioEventLookup.Count.ToString());
+                    audioEventLookup.Clear();
+                    audioEventLookup = AudioLib.getaudioEventLookup((Thing)__instance);
+
+                    AudioLib.printGreenLog("Count audioEventLookup : " + audioEventLookup.Count.ToString());
+                    if (__instance.AudioEvents != null)
+                    {
+                        AudioLib.printErrorLog("AudioEvents not null");
+                    }
+                    if (__instance.AudioEvents == null)
+                    {
+                        AudioLib.printGreenLog("AudioEvents null");
+                    }
+                    __instance.AudioEvents = null;
+                    if (__instance.AudioEvents != null)
+                    {
+                        AudioLib.printErrorLog("AudioEvents not null");
+                    }
+                    if (__instance.AudioEvents == null)
+                    {
+                        AudioLib.printGreenLog("AudioEvents null");
+                    }
+
+                    if (__instance.AudioEvents != null)
+                    {
+                        GameAudioEvent alarm2Events = null;
+                        GameAudioEvent alarm3Events = null;
+                        GameAudioEvent alarm2Lookup = null;
+                        GameAudioEvent alarm3Lookup = null;
+                        int keyRemoveEvents = -1;
+                        int keyRemoveLookup = -1;
+                        int i = 0;
+                        foreach (var audioEvent in __instance.AudioEvents)
+                        {
+                            if (audioEvent != null && audioEvent.Name == "Alarm1")
+                            {
+                                AudioLib.printGreenLog("AudioEvent 'Alarm1' found in Thing.");
+                                AudioLib.printGameAudioClipsData(audioEvent.ClipsData);
+                                keyRemoveEvents = i;
+
+                                //GameAudioClipsData modifiedGameAudioClipsData = AudioManager.Find((SoundAlert)45);
+                                //AudioLib.printGreenLog("checking clip from audiomanager");
+                                //AudioLib.printGameAudioClipsData(modifiedGameAudioClipsData);
+
+                                /*
+                                GameAudioClipsData modifiedGameAudioClipsData = AudioManager.Find((SoundAlert)45);
+                                AudioLib.printGreenLog("Modifié trouvé");
+                                AudioLib.printGameAudioClipsData(modifiedGameAudioClipsData);
+                                audioEvent.ClipsData.Clips = modifiedGameAudioClipsData.Clips;
+                                AudioLib.printGreenLog("final");
+                                AudioLib.printGameAudioClipsData(audioEvent.ClipsData);
+                                */
+                            }
+                            if (audioEvent != null && audioEvent.Name == "Alarm2")
+                            {
+                                AudioLib.printGreenLog("GameAudioEvent Alarm2 found in audioEvent");
+                                alarm2Events = audioEvent;
+                                string json = JsonUtility.ToJson(audioEvent, true);
+                                AudioLib.printCyanLog(json);
+                            }
+                            if (audioEvent != null && audioEvent.Name == "Alarm3")
+                            {
+                                AudioLib.printGreenLog("GameAudioEvent Alarm3 found in audioEvent");
+                                alarm3Events = audioEvent;
+                                string json = JsonUtility.ToJson(audioEvent, true);
+                                AudioLib.printCyanLog(json);
+                            }
+                            i++;
+                        }
+                        if (keyRemoveEvents != -1)
+                        {
+                            AudioLib.printGreenLog($"Key {keyRemoveEvents} removed from AudioEvents.");
+                            __instance.AudioEvents.RemoveAt(keyRemoveEvents);
+                        }
+                        else
+                        {
+                            AudioLib.printErrorLog("Key not found in AudioEvents.");
+                        }
+                        if (audioEventLookup != null)
+                        {
+                            foreach (var kvp in audioEventLookup)
+                            {
+                                if (kvp.Value != null && kvp.Value.Name == "Alarm1")
+                                {
+                                    AudioLib.printGreenLog("GameAudioEvent Alarm1 found in _audioEventLookup");
+                                    keyRemoveLookup = kvp.Key;
+                                }
+                                if (kvp.Value != null && kvp.Value.Name == "Alarm2")
+                                {
+                                    AudioLib.printGreenLog($"GameAudioEvent Alarm2 found in _audioEventLookup");
+                                    alarm2Lookup = kvp.Value;
+                                }
+                                if (kvp.Value != null && kvp.Value.Name == "Alarm3")
+                                {
+                                    AudioLib.printGreenLog($"GameAudioEvent Alarm3 found in _audioEventLookup");
+                                    alarm3Lookup = kvp.Value;
+                                }
+
+                            }
+                            if (keyRemoveLookup != -1)
+                            {
+                                AudioLib.printGreenLog($"Key {keyRemoveLookup} removed from _audioEventLookup.");
+                                audioEventLookup.Remove(keyRemoveLookup);
+                            }
+                            else
+                            {
+                                AudioLib.printErrorLog("Key not found in _audioEventLookup.");
+                            }
+                            if (alarm2Lookup != null && alarm3Lookup != null)
+                            {
+                                string tmpName = alarm3Lookup.Name;
+                                alarm3Lookup.Name = alarm2Lookup.Name;
+                                int tmpHash = alarm3Lookup.NameHash;
+                                alarm3Lookup.NameHash = alarm2Lookup.NameHash;
+                                alarm2Lookup.Name = tmpName;
+                                alarm2Lookup.NameHash = tmpHash;
+                                AudioLib.printGreenLog("Name and NameHash audioEvents alarm2 and 3 exchanged in AudioEvents");
+                            }
+                        }
+                        else
+                        {
+                            AudioLib.printErrorLog("_audioEventLookup null.");
+                        }
+                        if (alarm2Events != null && alarm3Events != null)
+                        {
+                            string tmpName = alarm3Events.Name;
+                            alarm3Events.Name = alarm2Events.Name;
+                            int tmpHash = alarm3Events.NameHash;
+                            alarm3Events.NameHash = alarm2Events.NameHash;
+                            alarm2Events.Name = tmpName;
+                            alarm2Events.NameHash = tmpHash;
+                            AudioLib.printGreenLog("Name and NameHash audioEvents alarm2 and 3 exchanged in _audioEventLookup");
+                        }
+                        foreach (var audioEvent in __instance.AudioEvents)
+                        {
+                            if (audioEvent != null && audioEvent.Name == "Alarm1")
+                            {
+                                AudioLib.printErrorLog("AudioEvent 'Alarm1' not deleted in audioEvent.");
+                                AudioLib.printGameAudioClipsData(audioEvent.ClipsData);
+                            }
+                            if (audioEvent != null && audioEvent.Name == "Alarm2")
+                            {
+                                AudioLib.printGreenLog("end alarm2 audioEvent");
+                                string json = JsonUtility.ToJson(audioEvent, true);
+                                AudioLib.printCyanLog(json);
+                            }
+                            if (audioEvent != null && audioEvent.Name == "Alarm3")
+                            {
+                                AudioLib.printGreenLog("end alarm3 audioEvent");
+                                string json = JsonUtility.ToJson(audioEvent, true);
+                                AudioLib.printCyanLog(json);
+                            }
+                        }
+                        if (audioEventLookup != null)
+                        {
+                            foreach (var kvp in audioEventLookup)
+                            {
+                                if (kvp.Value != null && kvp.Value.Name == "Alarm1")
+                                {
+                                    AudioLib.printErrorLog("AudioEvent 'Alarm1' not deleted in audioEventLookup.");
+                                }
+                                if (kvp.Value != null && kvp.Value.Name == "Alarm2")
+                                {
+                                    AudioLib.printGreenLog("end alarm2 audioEventLookup");
+                                    string json = JsonUtility.ToJson(kvp.Value, true);
+                                    AudioLib.printCyanLog(json);
+                                }
+                                if (kvp.Value != null && kvp.Value.Name == "Alarm3")
+                                {
+                                    AudioLib.printGreenLog("end alarm3 audioEventLookup");
+                                    string json = JsonUtility.ToJson(kvp.Value, true);
+                                    AudioLib.printCyanLog(json);
+                                }
+                            }
+                        }
+
+                    }
+                    else
+                    {
+                        AudioLib.printErrorLog("List AudioEvents null or empty.");
+                        return;
+                    }
+                    AudioLib.printGreenLog("END POSTFIX AWAKE SPEAKER");
+                }
+                return;
+            }
+            catch (Exception ex)
+            {
+                AudioLib.printErrorLog($"Error postfix Thing.Awake : {ex.Message}\n{ex.StackTrace}");
+            }
+            return;
+        }
+    }
+
+    [HarmonyPatch(typeof(StatusUpdate), "SetStatusUpdateVoiceByLanguage")]
+    public class SetStatusUpdateVoiceByLanguagePatch
+    {
+        [HarmonyPrefix]
+        static bool Prefix(StatusUpdate __instance)
+        {
+            //UnityEngine.Debug.Log("<color=green>START SetStatusUpdateVoiceByLanguage</color>");
+
+            var languageCodeToStringField = typeof(StatusUpdate).GetField("LanguageCodeToString", BindingFlags.Static | BindingFlags.NonPublic);
+            var languageCodeToString = languageCodeToStringField?.GetValue(null) as Dictionary<LanguageCode, string>;
+            if (languageCodeToString == null)
+            {
+                UnityEngine.Debug.LogError("LanguageCodeToString is null or inaccessible.");
+                return false;
+            }
+
+            var audioClipsByLanguageField = typeof(StatusUpdate).GetField("AudioClipsByLanguage", BindingFlags.Static | BindingFlags.NonPublic);
+            var audioClipsByLanguage = audioClipsByLanguageField?.GetValue(null) as Dictionary<LanguageCode, AudioClip>;
+            if (audioClipsByLanguage == null)
+            {
+                UnityEngine.Debug.LogError("AudioClipsByLanguage is null or inaccessible.");
+                return false;
+            }
+
+            audioClipsByLanguage.Clear();
+            languageCodeToString.Clear();
+            //languageCodeToString.Add(LanguageCode.EN, "ENGLISH");
+            //languageCodeToString.Add(LanguageCode.DE, "GERMAN");
+            //languageCodeToString.Add(LanguageCode.RU, "Russian");
+            //languageCodeToString.Add(LanguageCode.ZH, "Chinese");
+            languageCodeToString.Add(LanguageCode.FR, "French");
+            foreach (LanguageCode key in languageCodeToString.Keys)
+            {
+                AudioClip[] source = Resources.LoadAll<AudioClip>("Voice/" + languageCodeToString[key]);
+                //GameAudioClipsData GetClipData(int nameHash)
+                //AudioManager.Instance
+                //UnityEngine.Debug.Log("<color=yellow>Nom " + __instance.DisplayName.ToLower() + "</color>");
+                if (__instance.DisplayName.ToLower() == "airtankcritical")
+                {
+                    GameAudioClipsData clipData = AudioManager.Instance.GetClipData(Animator.StringToHash("AlarmCustom654654654"));
+                    if (clipData != null && clipData.Clips != null && clipData.Clips.Count > 0)
+                    {
+                        //var orig = Array.FindAll<AudioClip>(source, (AudioClip file) => file.name.ToLower().Contains(__instance.DisplayName.ToLower()));
+                        __instance.CollectedFiles = clipData.Clips.ToArray();
+                        //__instance.CollectedFiles[0].Name = orig[0].Name;
+                        UnityEngine.Debug.Log($"<color=green>Collected {clipData.Clips.Count} clips for AlarmCustom654654654.</color>");
+                    }
+                    else
+                    {
+                        __instance.CollectedFiles = new AudioClip[0];
+                        UnityEngine.Debug.LogWarning("<color=yellow>No clips found for AlarmCustom654654654.</color>");
+                    }
+                }
+                else
+                {
+                    __instance.CollectedFiles = Array.FindAll<AudioClip>(source, (AudioClip file) => file.name.ToLower().Contains(__instance.DisplayName.ToLower()));
+                }
+
+                if (__instance.CollectedFiles.Length != 0)
+                {
+                    audioClipsByLanguage.Add(key, __instance.CollectedFiles[0]);
+                }
+            }
+            if (audioClipsByLanguage.TryGetValue(Settings.CurrentData.VoiceLanguageCode, out __instance.AudioAlert))
+            {
+                return false;
+            }
+            audioClipsByLanguage.TryGetValue(LanguageCode.EN, out __instance.AudioAlert);
+            //UnityEngine.Debug.Log("<color=green>END SetStatusUpdateVoiceByLanguage</color>");
+            return false;
+        }
+    }
+
+    [HarmonyPatch(typeof(Settings), "PopulateVoiceLanguageDropdown")]
+    public class PopulateVoiceLanguageDropdownPatch
+    {
+        [HarmonyPrefix]
+        static bool Prefix(Settings __instance)
+        {
+            //UnityEngine.Debug.Log("<color=green>START PopulateVoiceLanguageDropdown</color>");
+
+            if (Settings.Instance == null)
+            {
+                return false;
+            }
+
+            var voiceLanguageDropdownField = typeof(Settings).GetField("_voiceLanguageDropdown", BindingFlags.Instance | BindingFlags.NonPublic);
+            var voiceLanguageDropdown = voiceLanguageDropdownField?.GetValue(Settings.Instance) as List<LanguageCode>;
+
+            if (voiceLanguageDropdown == null)
+            {
+                UnityEngine.Debug.LogError("_voiceLanguageDropdown is null or inaccessible.");
+                return false;
+            }
+
+            var getDropdownMethod = typeof(Settings).GetMethod("GetDropdown", BindingFlags.Static | BindingFlags.NonPublic);
+            TMP_Dropdown dropdown = null;
+            if (getDropdownMethod != null)
+            {
+                dropdown = getDropdownMethod.Invoke(null, new object[] { SettingType.VoiceLanguage }) as TMP_Dropdown;
+                if (dropdown != null)
+                {
+                    dropdown.ClearOptions();
+                }
+                else
+                {
+                    UnityEngine.Debug.LogError("Failed to retrieve TMP_Dropdown.");
+                    return false;
+                }
+            }
+            else
+            {
+                UnityEngine.Debug.LogError("GetDropdown method not found.");
+                return false;
+            }
+            List<TMP_Dropdown.OptionData> list = new List<TMP_Dropdown.OptionData>();
+            voiceLanguageDropdown.Clear();
+            list.Add(new TMP_Dropdown.OptionData("English"));
+            voiceLanguageDropdown.Add(LanguageCode.EN);
+            list.Add(new TMP_Dropdown.OptionData("German"));
+            voiceLanguageDropdown.Add(LanguageCode.DE);
+            list.Add(new TMP_Dropdown.OptionData("Russian"));
+            voiceLanguageDropdown.Add(LanguageCode.RU);
+            list.Add(new TMP_Dropdown.OptionData("Chinese"));
+            voiceLanguageDropdown.Add(LanguageCode.ZH);
+            list.Add(new TMP_Dropdown.OptionData("French"));
+            voiceLanguageDropdown.Add(LanguageCode.FR);
+            dropdown.AddOptions(list);
+            Settings.SetVoiceLanguageDropdown();
+
+            //UnityEngine.Debug.Log("<color=green>END PopulateVoiceLanguageDropdown</color>");
+            return false;
+        }
+    }
+}

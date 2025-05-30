@@ -1,0 +1,331 @@
+using System;
+using HarmonyLib;
+using StationeersMods.Interface;
+using System.Collections.Generic;
+using System.Collections;
+using Assets.Scripts.Objects.Electrical;
+using Assets.Scripts.Sound;
+using UnityEngine;
+using UnityEngine.Networking;
+using Assets.Scripts.Serialization;
+using System.Reflection;
+
+
+namespace ImportSound.Mod
+{
+    /*
+    [HarmonyPatch(typeof(AudioManager), "ManagerAwake")]
+    public class AudioManagerAwakePatchPre
+    {
+        static void Prefix()
+        {
+            try
+            {
+                // Accéder au champ privé _clipsDataHashLookup
+                var field = typeof(AudioManager).GetField("_clipsDataHashLookup", BindingFlags.NonPublic | BindingFlags.Instance);
+                if (field == null)
+                {
+                    UnityEngine.Debug.LogError("Le champ _clipsDataHashLookup est introuvable !");
+                    return;
+                }
+
+                // Récupérer l'instance d'AudioManager
+                var instance = AudioManager.Instance;
+                if (instance == null)
+                {
+                    UnityEngine.Debug.LogError("L'instance d'AudioManager est null !");
+                    return;
+                }
+
+                // Récupérer la valeur du champ (le dictionnaire)
+                var dictionary = (Dictionary<int, GameAudioClipsData>)field.GetValue(instance);
+                if (dictionary == null)
+                {
+                    UnityEngine.Debug.LogError("Le dictionnaire _clipsDataHashLookup est null !");
+                    return;
+                }
+
+                // Vider le dictionnaire
+                dictionary.Clear();
+
+                // Accéder au champ privé _clipsDataSoundAlertLookup
+                var field2 = typeof(AudioManager).GetField("_clipsDataSoundAlertLookup", BindingFlags.NonPublic | BindingFlags.Instance);
+                if (field2 == null)
+                {
+                    UnityEngine.Debug.LogError("Le champ _clipsDataSoundAlertLookup est introuvable !");
+                    return;
+                }
+
+                // Récupérer la valeur du champ (le dictionnaire)
+                var dictionary2 = (Dictionary<int, GameAudioClipsData>)field2.GetValue(instance);
+                if (dictionary2 == null)
+                {
+                    UnityEngine.Debug.LogError("Le dictionnaire _clipsDataSoundAlertLookup est null !");
+                    return;
+                }
+
+                // Vider le dictionnaire
+                dictionary2.Clear();
+
+                // Accéder au champ privé statique readonly
+                var field3 = typeof(AudioManager).GetField("PooledAudioXmlPaths", BindingFlags.NonPublic | BindingFlags.Static);
+                if (field3 == null)
+                {
+                    UnityEngine.Debug.LogError("Le champ PooledAudioXmlPaths est introuvable !");
+                    return;
+                }
+
+                // Récupérer le tableau actuel
+                var paths = (string[])field3.GetValue(null);
+                if (paths == null || paths.Length == 0)
+                {
+                    UnityEngine.Debug.LogError("Le tableau PooledAudioXmlPaths est null ou vide !");
+                    return;
+                }
+
+                // Modifier le contenu du tableau
+                paths[0] = "Assets/CustomPath/CustomAudioData.xml";
+                paths[1] = "Assets/CustomPath/CustomCollisionAudioData.xml";
+
+                field3.SetValue(null, new string[0]); // Tableau vide
+                
+                UnityEngine.Debug.Log("<color=green>PooledAudioXmlPaths modifié dans le constructeur statique !</color>");
+            }
+            catch (Exception ex)
+            {
+                UnityEngine.Debug.LogError($"Échec de la modification de PooledAudioXmlPaths dans le constructeur statique : {ex.Message}");
+            }
+        }
+    }
+    */
+
+    /*
+    [HarmonyPatch(typeof(AudioManager), "ManagerAwake")]
+    public class AudioManagerAwakePatchPost
+    {
+        static void Prefix()
+        {
+            try
+            {
+                UnityEngine.Debug.Log("<color=green>AudioManager.ManagerAwake has been called. Sounds should now be loaded.</color>");
+    */
+                /*
+                AudioClip[] source = Resources.LoadAll<AudioClip>("Voice/" + "ENGLISH");
+                // Vérifier si des clips ont été chargés
+                if (source != null && source.Length > 0)
+                {
+                    // Construire une chaîne contenant tous les noms des clips, séparés par des retours à la ligne
+                    string clipNames = string.Join("\n", Array.ConvertAll(source, clip => clip.name));
+
+                    // Afficher le log en vert
+                    UnityEngine.Debug.Log($"<color=green>{clipNames}</color>");
+                }
+                else
+                {
+                    UnityEngine.Debug.LogError("Aucun clip audio trouvé dans le chemin spécifié.");
+                }*/
+                /*
+                UnityEngine.Debug.Log("<color=cyan>Starting ReplaceAlarmSound coroutine...</color>");
+                var tempGameObject = new GameObject("TempImportSound");
+                var importSound = tempGameObject.AddComponent<ImportSound>();
+                importSound.StartCoroutine(importSound.WaitForReplaceAlarmSound());
+
+
+            }
+            catch (System.Exception ex)
+            {
+                UnityEngine.Debug.LogError($"Error in AudioManager.ManagerAwake patch: {ex.Message}\n{ex.StackTrace}");
+            }
+        }
+
+    }
+    */
+    [StationeersMod("ImportSound", "ImportSound [StationeersMods]", "0.2.4657.21547.1")]
+    public class ImportSound : ModBehaviour
+    {
+        public override void OnLoaded(ContentHandler contentHandler)
+        {
+            try
+            {
+                UnityEngine.Debug.Log("<color=green>ImportSound says: Hello World!</color>");
+
+                var harmony = new Harmony("ImportSound");
+                harmony.PatchAll();     
+
+                UnityEngine.Debug.Log("<color=green>Harmony patches ImportSound applied successfully.</color>");
+            }
+            catch (Exception ex)
+            {
+                UnityEngine.Debug.LogError($"Harmony patching ImportSound failed: {ex.Message}");
+            }
+        }
+
+        public IEnumerator WaitForReplaceAlarmSound()
+        {
+            // Attendre la fin de ReplaceAlarmSound
+            yield return StartCoroutine(ReplaceAlarmSound());
+
+            UnityEngine.Debug.Log("<color=cyan>ReplaceAlarmSound coroutine finished. Proceeding with the rest of the code...</color>");
+
+            // Jouer l'alerte sonore Alarm1 après l'initialisation
+            if (AudioManager.Instance == null)
+            {
+                UnityEngine.Debug.LogError("AudioManager instance is null.");
+                yield break;
+            }
+            var clipData = AudioManager.Find(SoundAlert.Alarm1);
+            if (clipData != null)
+            {
+                UnityEngine.Debug.Log($"<color=green>Clip Name: {clipData.Name}, Looping: {clipData.Looping}</color>");
+                AudioManager.Instance.PlayAudioClipsData(clipData.NameHash, Camera.main.transform.position, volumeMultiplier: 1.0f);
+                UnityEngine.Debug.Log("<color=green>Played alert sound: Alarm1</color>");
+            }
+            else
+            {
+                UnityEngine.Debug.LogError("No clip data found for alert: Alarm1");
+            }
+        }
+
+        private void PlayAlertSound(SoundAlert alert)
+        {
+            try
+            {
+                UnityEngine.Debug.Log("<color=green>Appel " + alert + "</color>");
+                // Vérifier si l'AudioManager est disponible
+                if (AudioManager.Instance == null)
+                {
+                    UnityEngine.Debug.LogError("AudioManager instance is null.");
+                    return;
+                }
+
+                // Jouer le son associé à l'alerte
+                var clipData = AudioManager.Find(alert);
+                if (clipData != null)
+                {
+                    AudioManager.Instance.PlayAudioClipsData(clipData.NameHash, UnityEngine.Vector3.zero);
+                    UnityEngine.Debug.Log($"<color=green>Played alert sound: {alert}</color>");
+                }
+                else
+                {
+                    UnityEngine.Debug.LogError($"No clip data found for alert: {alert}");
+                }
+            }
+            catch (Exception ex)
+            {
+                UnityEngine.Debug.LogError($"Failed to play alert sound: {ex.Message}");
+            }
+        }
+
+        public IEnumerator ReplaceAlarmSound()
+        {
+            
+            UnityEngine.Debug.Log("<color=cyan>ReplaceAlarmSound has been called.</color>");
+
+            var assembly = System.Reflection.Assembly.GetExecutingAssembly();
+            var modPath = System.IO.Path.GetDirectoryName(assembly.Location);
+
+            UnityEngine.Debug.Log($"<color=cyan>Mod directory: {modPath}</color>");
+
+            string filePath = modPath + "/GameData/AlertSounds/alarm_4min.mp3";
+            UnityWebRequest request = UnityWebRequestMultimedia.GetAudioClip(filePath, AudioType.MPEG);
+            yield return request.SendWebRequest();
+
+            try
+            {
+
+                if (request.result == UnityWebRequest.Result.ConnectionError || request.result == UnityWebRequest.Result.ProtocolError)
+                {
+                    UnityEngine.Debug.LogError($"Failed to load audio clip from path: {filePath}. Error: {request.error}");
+                    yield break;
+                }
+
+                UnityEngine.Debug.Log($"<color=green>Request ok from path : {filePath}</color>");
+
+                AudioClip audioClipReq = DownloadHandlerAudioClip.GetContent(request);
+                if (audioClipReq != null)
+                {
+                    UnityEngine.Debug.Log($"<color=green>Audio clip loaded successfully from path: {filePath}</color>");
+
+                    /*
+                    var clipsDataHashLookup = typeof(AudioManager).GetField("_clipsDataHashLookup", BindingFlags.NonPublic | BindingFlags.Instance);
+                    if (clipsDataHashLookup != null)
+                    {
+                        var instance = AudioManager.Instance;
+                        var dictionaryClips = (Dictionary<int, GameAudioClipsData>)clipsDataHashLookup.GetValue(instance);
+
+                        if (dictionaryClips != null)
+                        {
+                            foreach (var kvp in dictionaryClips)
+                            {
+                                UnityEngine.Debug.Log($"<color=yellow>Clé existante : {kvp.Key}, Nom : {kvp.Value.Name}</color>");
+                            }
+                        }
+                    }
+
+                    var clipsDataSoundAlertLookup = typeof(AudioManager).GetField("_clipsDataSoundAlertLookup", BindingFlags.NonPublic | BindingFlags.Instance);
+                    if (clipsDataSoundAlertLookup != null)
+                    {
+                        var instance = AudioManager.Instance;
+                        var dictionaryAlerts = (Dictionary<int, GameAudioClipsData>)clipsDataSoundAlertLookup.GetValue(instance);
+
+                        if (dictionaryAlerts != null)
+                        {
+                            foreach (var kvp in dictionaryAlerts)
+                            {
+                                UnityEngine.Debug.Log($"<color=yellow>Clé existante : {kvp.Key}, Nom : {kvp.Value.Name}</color>");
+                            }
+                        }
+                    }
+
+
+                    int hash = Animator.StringToHash("AlarmCustom");
+                    UnityEngine.Debug.Log($"Hash pour 'AlarmCustom_' : {hash}");
+                    */
+
+                    var customClipData = new GameAudioClipsData
+                    {
+                        Name = "AlarmCustom654654654", // Nom unique pour le clip
+                        NameHash = Animator.StringToHash("AlarmCustom654654654"), // Hash basé sur le nom
+                        Looping = true // Si le son doit être en boucle,
+                    };
+                    customClipData.ClipNames.Add(filePath);
+                    customClipData.Clips.Add(audioClipReq);
+
+                    if (AudioManager.Instance != null)
+                    {
+                        AudioManager.Instance.LoadAudioData(new[]
+                        {
+                            new AudioData
+                            {
+                                ChannelData = new List<ChannelData>
+                                {
+                                    new ChannelData { Name = "Large" } // Canal audio
+                                },
+                                AudioClipsData = new List<GameAudioClipsData> { customClipData } // Associer le clip
+                            }
+                        });
+
+                        UnityEngine.Debug.Log("<color=green>Replaced Alarm1 sound with alarm_4min.mp3</color>");
+                    }
+                    else
+                    {
+                        UnityEngine.Debug.LogError("AudioManager instance is null.");
+                    }
+                }
+                else
+                {
+                    UnityEngine.Debug.LogError($"Failed to create AudioClip from path: {filePath}");
+                }
+
+
+                
+            }
+            catch (Exception ex)
+            {
+                UnityEngine.Debug.LogError($"Failed to replace Alarm1 sound: {ex.Message}");
+            }
+        }
+
+
+    }
+}

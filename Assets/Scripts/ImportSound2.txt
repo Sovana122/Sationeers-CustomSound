@@ -1,0 +1,462 @@
+using System;
+using HarmonyLib;
+using StationeersMods.Interface;
+using System.Collections.Generic;
+using System.Collections;
+using Assets.Scripts.Objects.Electrical;
+using Assets.Scripts.Sound;
+using UnityEngine;
+using UnityEngine.Networking;
+using Assets.Scripts.Serialization;
+using System.Reflection;
+
+
+namespace ImportSound.Mod
+{
+
+    [StationeersMod("ImportSound", "ImportSound [StationeersMods]", "0.2.4657.21547.1")]
+    public class ImportSound : ModBehaviour
+    {
+        public override void OnLoaded(ContentHandler contentHandler)
+        {
+            try
+            {
+                UnityEngine.Debug.Log("<color=green>ImportSound says: Hello World!</color>");
+
+                var harmony = new Harmony("ImportSound");
+                harmony.PatchAll();
+
+                UnityEngine.Debug.Log("<color=green>Harmony patches ImportSound applied successfully.</color>");
+            }
+            catch (Exception ex)
+            {
+                UnityEngine.Debug.LogError($"Harmony patching ImportSound failed: {ex.Message}\n{ex.StackTrace}");
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(AudioManager), "ManagerAwake")]
+    public class AudioManagerAwakePatchPrefix
+    {
+        static void Prefix()
+        {
+            try
+            {
+                UnityEngine.Debug.Log("<color=green>Prefix AudioManager.ManagerAwake has been called. Sounds should now be loaded.</color>");
+
+                if (AudioManager.Instance == null)
+                {
+                    UnityEngine.Debug.LogError("AudioManager instance is null.");
+                    return;
+                }
+
+                Assembly assembly = System.Reflection.Assembly.GetExecutingAssembly();
+                string modPath = System.IO.Path.GetDirectoryName(assembly.Location);
+                string filePath = modPath + "/GameData/AlertSounds/alarm_4min.mp3";
+
+                UnityWebRequest request = UnityWebRequestMultimedia.GetAudioClip(filePath, AudioType.MPEG);
+                request.SendWebRequest();
+
+                while (!request.isDone) { }
+
+                try
+                {
+                    if (request.result == UnityWebRequest.Result.ConnectionError || request.result == UnityWebRequest.Result.ProtocolError)
+                    {
+                        UnityEngine.Debug.LogError($"Failed to load audio clip from path: {filePath}. Error: {request.error}");
+                        return;
+                    }
+                    AudioClip audioClipLoaded = DownloadHandlerAudioClip.GetContent(request);
+
+                    if (audioClipLoaded == null)
+                    {
+                        UnityEngine.Debug.LogError($"Failed to create AudioClip from path: {filePath}");
+                    }
+
+                    if (string.IsNullOrEmpty(audioClipLoaded.name))
+                    {
+                        audioClipLoaded.name = System.IO.Path.GetFileNameWithoutExtension(filePath);
+                        //UnityEngine.Debug.Log($"<color=yellow>audioClipLoaded name was empty. Set to:</color> {audioClipLoaded.name}");
+                    }
+
+                    /*
+                    UnityEngine.Debug.Log($"<color=yellow>Prefix AudioClip Info: " +
+                        $"Name: {audioClipLoaded.name}, " +
+                        $"Length: {audioClipLoaded.length}s, " +
+                        $"Samples: {audioClipLoaded.samples}, " +
+                        $"Frequency: {audioClipLoaded.frequency}Hz, " +
+                        $"Channels: {audioClipLoaded.channels}") + "</color>";
+                    */
+
+
+                    var customGameAudioClipsData = new GameAudioClipsData
+                    {
+                        Name = "AlarmCustom654654654",
+                        NameHash = Animator.StringToHash("AlarmCustom654654654"),
+                        Looping = true,
+                        ChannelName = "Large"
+                    };                    
+
+                    customGameAudioClipsData.ClipNames.Add(filePath);
+                    customGameAudioClipsData.Clips.Add(audioClipLoaded);
+
+                    if (customGameAudioClipsData.Clips.Count > 0 && customGameAudioClipsData.Clips[0] != null)
+                    {
+                        var addedClip = customGameAudioClipsData.Clips[0];
+                        /*
+                        UnityEngine.Debug.Log($"<color=yellow>Clip added to customGameAudioClipsData: " +
+                            $"Name: {addedClip.name}, " +
+                            $"Length: {addedClip.length}s, " +
+                            $"Samples: {addedClip.samples}, " +
+                            $"Frequency: {addedClip.frequency}Hz, " +
+                            $"Channels: {addedClip.channels}") + "</color>";
+                        */
+                    }
+                    else
+                    {
+                        UnityEngine.Debug.LogError("Failed to add clip to customGameAudioClipsData. The clip is null or the list is empty.");
+                    }
+
+                    AudioData customAudioData =
+                    new AudioData
+                    {
+                        /*
+                        ChannelData = new List<ChannelData>
+                        {
+                            new ChannelData { Name = "Large" }
+                        },*/
+                        AudioClipsData = new List<GameAudioClipsData> { customGameAudioClipsData }
+                    };
+
+
+                    List<AudioData> toModifyAudioDataList = new List<AudioData>(AudioManager.Instance.pooledAudioData);
+                    toModifyAudioDataList.Add(customAudioData);
+
+                    GameAudioClipsData testGameAudioClipsDataFromList = null;
+
+                    GameAudioClipsData alarm2GameAudioClipsDataFromList = null;
+                    foreach (AudioData toModifyAudioData in toModifyAudioDataList)
+                    {
+                        if (toModifyAudioData != null)
+                        {
+                            foreach (GameAudioClipsData toModifyGameAudioClipsDat in toModifyAudioData.AudioClipsData)
+                            {
+                                if (toModifyGameAudioClipsDat.Name == "AlarmCustom654654654")
+                                {
+                                    //UnityEngine.Debug.Log($"<color=cyan>Found AlarmCustom654654654 toModifyGameAudioClipsDat: NameHash = {toModifyGameAudioClipsDat.NameHash}</color>");
+                                    testGameAudioClipsDataFromList = toModifyGameAudioClipsDat;
+                                }
+                                if (toModifyGameAudioClipsDat.Name == "Alarm2")
+                                {
+                                    //UnityEngine.Debug.Log($"<color=cyan>Found Alarm2 toModifyGameAudioClipsDat: NameHash = {toModifyGameAudioClipsDat.NameHash}</color>");
+                                    alarm2GameAudioClipsDataFromList = toModifyGameAudioClipsDat;
+                                }
+                            }
+                        }
+                    }
+                    foreach (AudioData toModifyAudioData in toModifyAudioDataList)
+                    {
+                        if (toModifyAudioData != null)
+                        {
+                            foreach (GameAudioClipsData toModifyGameAudioClipsDat in toModifyAudioData.AudioClipsData)
+                            {
+                                if (toModifyGameAudioClipsDat.Name == "Alarm1") 
+                                {
+                                    foreach (AudioClip audioClipFromList in toModifyGameAudioClipsDat.Clips)
+                                    {
+                                        //UnityEngine.Debug.Log($"<color=cyan>Found Alarm1 toModifyGameAudioClipsDat for replace</color>");
+                                        string test = JsonUtility.ToJson(toModifyGameAudioClipsDat, true);
+                                        UnityEngine.Debug.Log($"<color=green>Originel Alarm1: {test}</color>");
+                                        UnityEngine.Debug.Log($"<color=yellow>Originel Alarm1 AudioClip Info: " +
+                                            $"Name: {audioClipFromList.name}, " +
+                                            $"Length: {audioClipFromList.length}s, " +
+                                            $"Samples: {audioClipFromList.samples}, " +
+                                            $"Frequency: {audioClipFromList.frequency}Hz, " +
+                                            $"Channels: {audioClipFromList.channels}" + "</color>");
+                                        var tmp1 = toModifyGameAudioClipsDat.Clips;
+                                        var tmp2 = toModifyGameAudioClipsDat.SoundAlert;
+                                        var tmp3 = toModifyGameAudioClipsDat.NameHash;
+                                        toModifyGameAudioClipsDat.Clips = alarm2GameAudioClipsDataFromList.Clips;
+                                        toModifyGameAudioClipsDat.SoundAlert = alarm2GameAudioClipsDataFromList.SoundAlert;
+                                        toModifyGameAudioClipsDat.NameHash = alarm2GameAudioClipsDataFromList.NameHash;
+                                        alarm2GameAudioClipsDataFromList.Clips = tmp1;
+                                        alarm2GameAudioClipsDataFromList.SoundAlert = tmp2;
+                                        alarm2GameAudioClipsDataFromList.NameHash = tmp3;
+
+                                    }
+                                }
+                                if (toModifyGameAudioClipsDat.Name == "Alarm2")
+                                {
+                                    foreach (AudioClip audioClipFromList in toModifyGameAudioClipsDat.Clips)
+                                    {
+                                        //UnityEngine.Debug.Log($"<color=cyan>Found Alarm1 toModifyGameAudioClipsDat for replace</color>");
+                                        string test = JsonUtility.ToJson(toModifyGameAudioClipsDat, true);
+                                        UnityEngine.Debug.Log($"<color=green>Alarm2 : {test}</color>");
+                                        UnityEngine.Debug.Log($"<color=yellow>Originel Alarm2 AudioClip Info: " +
+                                            $"Name: {audioClipFromList.name}, " +
+                                            $"Length: {audioClipFromList.length}s, " +
+                                            $"Samples: {audioClipFromList.samples}, " +
+                                            $"Frequency: {audioClipFromList.frequency}Hz, " +
+                                            $"Channels: {audioClipFromList.channels}" + "</color>");
+
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    AudioManager.Instance.pooledAudioData = toModifyAudioDataList.ToArray();
+
+                    if (testGameAudioClipsDataFromList != null)
+                    {
+                        string jsonTestGameAudioClipsDataFromList = JsonUtility.ToJson(testGameAudioClipsDataFromList, true);
+                        UnityEngine.Debug.Log($"<color=green>testGameAudioClipsDataFromList sound found: {jsonTestGameAudioClipsDataFromList}</color>");
+                        if (testGameAudioClipsDataFromList.Clips != null && testGameAudioClipsDataFromList.Clips.Count > 0)
+                        {
+                            foreach (AudioClip audioClipFromList in testGameAudioClipsDataFromList.Clips)
+                            {
+                                if (audioClipFromList != null)
+                                {
+                                    UnityEngine.Debug.Log($"<color=yellow>testGameAudioClipsDataFromList AudioClip Info: " +
+                                        $"Name: {audioClipFromList.name}, " +
+                                        $"Length: {audioClipFromList.length}s, " +
+                                        $"Samples: {audioClipFromList.samples}, " +
+                                        $"Frequency: {audioClipFromList.frequency}Hz, " +
+                                        $"Channels: {audioClipFromList.channels}" + "</color>");
+                                }
+                                else
+                                {
+                                    UnityEngine.Debug.Log("<color=red>testGameAudioClipsDataFromList contains a null AudioClip.</color>");
+                                }
+                            }
+                        }
+                        else
+                        {
+                            UnityEngine.Debug.Log("<color=red>testGameAudioClipsDataFromList has no AudioClips in its Clips list.</color>");
+                        }
+                    }
+                    else
+                    {
+                        UnityEngine.Debug.Log("<color=red>testGameAudioClipsDataFromList sound not found.</color>");
+                    }
+
+                    GameAudioClipsData testCustomGameAudioClipsDataFromArray = null;
+                    GameAudioClipsData testAlarm1GameAudioClipsDataFromArray = null;
+                    foreach (AudioData audioDataFromArray in AudioManager.Instance.pooledAudioData)
+                    {
+                        if (audioDataFromArray != null)
+                        {
+                            foreach (GameAudioClipsData gameAudioClipsDataFromArray in audioDataFromArray.AudioClipsData)
+                            {
+                                if (gameAudioClipsDataFromArray.Name == "AlarmCustom654654654")
+                                {
+                                    //UnityEngine.Debug.Log($"<color=cyan>Found audio: NameHash = {gameAudioClipsDataFromArray.NameHash}</color>");
+                                    testCustomGameAudioClipsDataFromArray = gameAudioClipsDataFromArray;
+                                }
+                                if (gameAudioClipsDataFromArray.Name == "Alarm1")
+                                {
+                                    testAlarm1GameAudioClipsDataFromArray = gameAudioClipsDataFromArray;
+                                }
+                            }
+                        }
+                    }
+
+                    if (testCustomGameAudioClipsDataFromArray != null)
+                    {
+                        string jsonTestGameAudioClipsDataFromArray = JsonUtility.ToJson(testCustomGameAudioClipsDataFromArray, true);
+                        UnityEngine.Debug.Log($"<color=green>testGameAudioClipsDataFromArray sound found: {jsonTestGameAudioClipsDataFromArray}</color>");
+                        if (testCustomGameAudioClipsDataFromArray.Clips != null && testCustomGameAudioClipsDataFromArray.Clips.Count > 0)
+                        {
+                            foreach (AudioClip audioClipFromArray in testCustomGameAudioClipsDataFromArray.Clips)
+                            {
+                                if (audioClipFromArray != null)
+                                {
+                                    UnityEngine.Debug.Log($"<color=yellow>testCustomGameAudioClipsDataFromArray AudioClip Info: " +
+                                        $"Name: {audioClipFromArray.name}, " +
+                                        $"Length: {audioClipFromArray.length}s, " +
+                                        $"Samples: {audioClipFromArray.samples}, " +
+                                        $"Frequency: {audioClipFromArray.frequency}Hz, " +
+                                        $"Channels: {audioClipFromArray.channels}" + "</color>");
+                                }
+                                else
+                                {
+                                    UnityEngine.Debug.Log("<color=red>testCustomGameAudioClipsDataFromArray contains a null AudioClip.</color>");
+                                }
+                            }
+                        }
+                        else
+                        {
+                            UnityEngine.Debug.Log("<color=red>testCustomGameAudioClipsDataFromArray has no AudioClips in its Clips list.</color>");
+                        }
+                    }
+                    else
+                    {
+                        UnityEngine.Debug.Log("<color=red>testGameAudioClipsDataFromArray sound not found.</color>");
+                    }
+
+                    if (testAlarm1GameAudioClipsDataFromArray != null)
+                    {
+                        string jsonTestGameAudioClipsDataFromArray = JsonUtility.ToJson(testAlarm1GameAudioClipsDataFromArray, true);
+                        UnityEngine.Debug.Log($"<color=green>testGameAudioClipsDataFromArray sound found: {jsonTestGameAudioClipsDataFromArray}</color>");
+                        if (testAlarm1GameAudioClipsDataFromArray.Clips != null && testAlarm1GameAudioClipsDataFromArray.Clips.Count > 0)
+                        {
+                            foreach (AudioClip audioClipFromArray in testAlarm1GameAudioClipsDataFromArray.Clips)
+                            {
+                                if (audioClipFromArray != null)
+                                {
+                                    UnityEngine.Debug.Log($"<color=yellow>testAlarm1GameAudioClipsDataFromArray AudioClip Info: " +
+                                        $"Name: {audioClipFromArray.name}, " +
+                                        $"Length: {audioClipFromArray.length}s, " +
+                                        $"Samples: {audioClipFromArray.samples}, " +
+                                        $"Frequency: {audioClipFromArray.frequency}Hz, " +
+                                        $"Channels: {audioClipFromArray.channels}" + "</color>");
+                                }
+                                else
+                                {
+                                    UnityEngine.Debug.Log("<color=red>testAlarm1GameAudioClipsDataFromArray contains a null AudioClip.</color>");
+                                }
+                            }
+                        }
+                        else
+                        {
+                            UnityEngine.Debug.Log("<color=red>testAlarm1GameAudioClipsDataFromArray has no AudioClips in its Clips list.</color>");
+                        }
+                    }
+                    else
+                    {
+                        UnityEngine.Debug.Log("<color=red>testGameAudioClipsDataFromArray sound not found.</color>");
+                    }
+
+                    UnityEngine.Debug.Log("<color=green>Added Alarm1 sound with alarm_4min.mp3</color>");
+                }
+                catch (Exception ex)
+                {
+                    UnityEngine.Debug.LogError($"Failed to add Alarm1 sound: {ex.Message}\n{ex.StackTrace}");
+                }
+
+                UnityEngine.Debug.Log("<color=green>Prefix AudioManager.ManagerAwake end.</color>");
+            }
+            catch (System.Exception ex)
+            {
+                UnityEngine.Debug.LogError($"Error in Prefix AudioManager.ManagerAwake patch: {ex.Message}\n{ex.StackTrace}");
+            }
+            return true;
+        }
+
+        //Singleton<AudioManager>.Instance.PlayAudioClipsData(clipNameHash, Vector3.zero, 1f, 1f);
+
+        [HarmonyPatch(typeof(AudioManager), "ManagerAwake")]
+        public class AudioManagerAwakePatchPost
+        {
+            static void Postfix()
+            {
+                try
+                {
+                    UnityEngine.Debug.Log("<color=green>Postfix: AudioManager.ManagerAwake has been called.</color>");
+
+                    if (AudioManager.Instance == null || AudioManager.Instance.pooledAudioData == null)
+                    {
+                        UnityEngine.Debug.LogError("AudioManager instance or pooledAudioData is null.");
+                        return;
+                    }
+
+                    GameAudioClipsData alarm1 = null;
+                    GameAudioClipsData alarmCustom = null;
+
+                    foreach (var audioData in AudioManager.Instance.pooledAudioData)
+                    {
+                        if (audioData != null)
+                        {
+                            foreach (var clipData in audioData.AudioClipsData)
+                            {
+                                if (clipData.Name == "AlarmCustom654654654")
+                                {
+                                    UnityEngine.Debug.Log($"<color=cyan>Found audio: NameHash = {clipData.NameHash}</color>");
+                                    alarmCustom = clipData;
+                                }
+                                if (clipData.Name == "Alarm1")
+                                {
+                                    UnityEngine.Debug.Log($"<color=cyan>Found audio: NameHash = {clipData.NameHash}</color>");
+                                    alarm1 = clipData;
+                                }
+                            }
+                        }
+                    }
+
+                    if (alarm1 != null)
+                    {
+                        AudioManager.Instance.PlayAudioClipsData(alarm1.NameHash, Vector3.zero);
+                        string alarm1Json = JsonUtility.ToJson(alarm1, true);
+                        UnityEngine.Debug.Log($"<color=green>Alarm1 sound found: {alarm1Json}</color>");
+                        if (alarm1.Clips != null && alarm1.Clips.Count > 0)
+                        {
+                            foreach (var audioClip in alarm1.Clips)
+                            {
+                                if (audioClip != null)
+                                {
+                                    UnityEngine.Debug.Log($"<color=yellow>Alarm1 AudioClip Info: " +
+                                        $"Name: {audioClip.name}, " +
+                                        $"Length: {audioClip.length}s, " +
+                                        $"Samples: {audioClip.samples}, " +
+                                        $"Frequency: {audioClip.frequency}Hz, " +
+                                        $"Channels: {audioClip.channels}" + "</color>");
+                                }
+                                else
+                                {
+                                    UnityEngine.Debug.Log("<color=red>Alarm1 contains a null AudioClip.</color>");
+                                }
+                            }
+                        }
+                        else
+                        {
+                            UnityEngine.Debug.Log("<color=red>Alarm1 has no AudioClips in its Clips list.</color>");
+                        }
+                    }
+                    else
+                    {
+                        UnityEngine.Debug.Log("<color=red>Alarm1 sound not found.</color>");
+                    }
+                    if (alarmCustom != null)
+                    {
+                        //AudioManager.Instance.PlayAudioClipsData(alarmCustom.NameHash, Vector3.zero, 1f, 1f);
+                        string alarmCustomJson = JsonUtility.ToJson(alarmCustom, true);
+                        UnityEngine.Debug.Log($"<color=green>AlarmCustom sound found: {alarmCustomJson}</color>");
+                        if (alarmCustom.Clips != null && alarmCustom.Clips.Count > 0)
+                        {
+                            foreach (var audioClip in alarmCustom.Clips)
+                            {
+                                if (audioClip != null)
+                                {
+                                    UnityEngine.Debug.Log($"<color=yellow>alarmCustom AudioClip Info: " +
+                                        $"Name: {audioClip.name}, " +
+                                        $"Length: {audioClip.length}s, " +
+                                        $"Samples: {audioClip.samples}, " +
+                                        $"Frequency: {audioClip.frequency}Hz, " +
+                                        $"Channels: {audioClip.channels}" + "</color>");
+                                }
+                                else
+                                {
+                                    UnityEngine.Debug.Log("<color=red>alarmCustom contains a null AudioClip.</color>");
+                                }
+                            }
+                        }
+                        else
+                        {
+                            UnityEngine.Debug.Log("<color=red>alarmCustom has no AudioClips in its Clips list.</color>");
+                        }
+                    }
+                    else
+                    {
+                        UnityEngine.Debug.Log("<color=red>AlarmCustom sound not found.</color>");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    UnityEngine.Debug.LogError($"Error in Postfix of AudioManager.ManagerAwake: {ex.Message}\n{ex.StackTrace}");
+                }
+            }
+        }
+
+
+    }
+}
