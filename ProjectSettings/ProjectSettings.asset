@@ -619,7 +619,7 @@ PlayerSettings:
   webGLMemoryGeometricGrowthCap: 96
   webGLPowerPreference: 2
   scriptingDefineSymbols:
-    Standalone: STATIONEERS_DLL
+    Standalone: STATIONEERS_DLL;STATIONEERS_DLL_PRESENT
   additionalCompilerArguments: {}
   platformArchitecture: {}
   scriptingBackend: {}

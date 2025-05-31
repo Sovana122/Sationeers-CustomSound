@@ -89,8 +89,45 @@ namespace ImportSound.VoicePatcherSpace
             }
             modeHashesField.SetValue(null, Speaker.modeStrings.Select(new Func<string, int>(Animator.StringToHash)).ToArray<int>());
         }
-        /*
-        [HarmonyPatch(typeof(Thing), "Awake")]
+
+        [HarmonyPatch(typeof(Speaker), "GetContextualName")]
+        public class ThingGetContextualNamePatchPrefix
+        {
+            static bool Prefix(Speaker __instance, Interactable interactable, ref string __result)
+            {
+                try
+                {
+                    if (interactable.Action == InteractableType.Button1)
+                    {
+                        var mode = __instance.Mode;
+                        var events = __instance.Interactables[4].AssociatedAudioEvents;
+                        var found = events.FirstOrDefault(ev =>
+                            ev.Conditions.Any(cond => cond.Type == InteractableType.Mode && cond.Value == mode)
+                        );
+                        if (found != null && Speaker.modeStrings != null && mode >= 0 && mode < Speaker.modeStrings.Length)
+                        {
+                            __result = Speaker.modeStrings[mode];
+                        }
+                        else
+                        {
+                            __result = "None";
+                        }
+                        return false;
+                    }
+                    else
+                    {
+                        return true;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    AudioLib.errorLog($"Error prefix Thing.GetContextualName SPEAKER : {ex.Message}\n{ex.StackTrace}");
+                    return true;
+                }
+            }
+        }
+
+                    [HarmonyPatch(typeof(Thing), "Awake")]
         public class ThingAwakePatchPostfix
         {
             static void Postfix(Thing __instance)
@@ -105,6 +142,7 @@ namespace ImportSound.VoicePatcherSpace
                         List<GameAudioEvent> newGameAudioEventList = new List<GameAudioEvent>();
                         //AudioLib.printGameAudioClipsDataList(importedGameAudioClipsData);
                         
+                        int i = 1;
                         foreach (GameAudioClipsData importGameData in importedGameAudioClipsData)
                         {
                             GameAudioEvent newGameAudioEvent = new GameAudioEvent
@@ -112,10 +150,29 @@ namespace ImportSound.VoicePatcherSpace
                                 Name = importGameData.Name,
                                 NameHash = importGameData.NameHash,
                                 ClipsData = importGameData,
-                                StopIfInvalid = true
+                                StopIfInvalid = true,
+                                Conditions = new List<SoundEffectCondition>(),
+                                Parent = speakerInstance,
+
                             };
+                            newGameAudioEvent.Conditions.Add(new SoundEffectCondition
+                            {
+                                Type = InteractableType.OnOff,
+                                Value = 1
+                            });
+                            newGameAudioEvent.Conditions.Add(new SoundEffectCondition
+                            {
+                                Type = InteractableType.Powered,
+                                Value = 1
+                            });
+                            newGameAudioEvent.Conditions.Add(new SoundEffectCondition
+                            {
+                                Type = InteractableType.Mode,
+                                Value = __instance.Interactables[4].AssociatedAudioEvents.Count() + i
+                            });
                             AudioLib.printObj(newGameAudioEvent);
                             newGameAudioEventList.Add(newGameAudioEvent);
+                            i++;
                         }
                         if (__instance == null || __instance.Interactables.Count() < 4 || __instance.Interactables[4].AssociatedAudioEvents == null)
                         {
@@ -123,24 +180,26 @@ namespace ImportSound.VoicePatcherSpace
                             return;
                         }
                         AudioLib.greenLog(__instance.Interactables[4].AssociatedAudioEvents.Count().ToString());
-                        __instance.Interactables[4].AssociatedAudioEvents.RemoveRange(__instance.Interactables[4].AssociatedAudioEvents.Count - 2, 2);
-                        //__instance.Interactables[4].AssociatedAudioEvents.AddRange(newGameAudioEventList); //4 is "Mode" property associated
-                        __instance.Interactables[4].AssociatedAudioEvents.Add(__instance.Interactables[4].AssociatedAudioEvents[__instance.Interactables[4].AssociatedAudioEvents.Count - 1]);
-                        __instance.Interactables[4].AssociatedAudioEvents.Add(__instance.Interactables[4].AssociatedAudioEvents[__instance.Interactables[4].AssociatedAudioEvents.Count - 1]);
+                        //__instance.Interactables[4].AssociatedAudioEvents.RemoveRange(__instance.Interactables[4].AssociatedAudioEvents.Count - 2, 2);
+                        __instance.Interactables[4].AssociatedAudioEvents.AddRange(newGameAudioEventList); //4 is "Mode" property associated
+                        //__instance.Interactables[4].AssociatedAudioEvents.Add(__instance.Interactables[4].AssociatedAudioEvents[__instance.Interactables[4].AssociatedAudioEvents.Count - 1]);
+                        //__instance.Interactables[4].AssociatedAudioEvents.Add(__instance.Interactables[4].AssociatedAudioEvents[__instance.Interactables[4].AssociatedAudioEvents.Count - 1]);
                         AudioLib.greenLog(__instance.Interactables[4].AssociatedAudioEvents.Count().ToString());
                         AudioLib.greenLog(__instance.AudioEvents.Count().ToString());
-                        __instance.AudioEvents.RemoveRange(__instance.AudioEvents.Count - 2, 2);
-                        //__instance.AudioEvents.AddRange(newGameAudioEventList);
-                        __instance.AudioEvents.Add(__instance.AudioEvents[__instance.AudioEvents.Count - 1]);
-                        __instance.AudioEvents.Add(__instance.AudioEvents[__instance.AudioEvents.Count - 1]);
+                        //__instance.AudioEvents.RemoveRange(__instance.AudioEvents.Count - 2, 2);
+                        __instance.AudioEvents.AddRange(newGameAudioEventList);
+                        //__instance.AudioEvents.Add(__instance.AudioEvents[__instance.AudioEvents.Count - 1]);
+                        //__instance.AudioEvents.Add(__instance.AudioEvents[__instance.AudioEvents.Count - 1]);
                         AudioLib.greenLog(__instance.AudioEvents.Count().ToString());
-                        if (!_modeStringsInitialized)
+                        if (!_modeStringsInitialized && Speaker.modeStrings.Length == 46)
                         {
                             AudioLib.greenLog("init ModeString");
-                            del2();
-                            //addToModeStrings(importedGameAudioClipsData.Select(data => data.Name).ToList());
-                            addToModeStrings(getModeStrings()[0]);
-                            addToModeStrings(getModeStrings()[0]);
+                            //del2();
+                            var test = importedGameAudioClipsData.Select(data => data.Name).ToList();
+                            //AudioLib.printObj(test);
+                            addToModeStrings(importedGameAudioClipsData.Select(data => data.Name).ToList());
+                            //addToModeStrings(getModeStrings()[0]);
+                            //addToModeStrings(getModeStrings()[0]);
                             ReInitModeHashes();
                         }
 
@@ -156,6 +215,6 @@ namespace ImportSound.VoicePatcherSpace
                 }
                 return;
             }
-        }*/
+        }
     }
 }

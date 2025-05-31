@@ -277,6 +277,7 @@ namespace ImportSound.AudioManagerLibSpace
             customGameAudioClipsData.NameHash = Animator.StringToHash(clip.name);
             customGameAudioClipsData.Looping = loop;
             customGameAudioClipsData.ChannelName = "Large";
+            customGameAudioClipsData.ConcurrencyIds = new List<int>();
 
             AudioData customAudioData = new AudioData();
             customAudioData.AudioClipsData.Add(customGameAudioClipsData);
