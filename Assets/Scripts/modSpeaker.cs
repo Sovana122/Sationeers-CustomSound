@@ -140,7 +140,9 @@ namespace ImportSound.VoicePatcherSpace
                     if (interactable.Action == InteractableType.Button1)
                     {
                         var mode = __instance.Mode;
-                        var events = __instance.Interactables[4].AssociatedAudioEvents;
+                        var events = __instance.Interactables
+                            .FirstOrDefault(interact => interact != null && interact.DisplayName == "Mode")
+                            .AssociatedAudioEvents;
                         var found = events.FirstOrDefault(ev =>
                             ev.Conditions.Any(cond => cond.Type == InteractableType.Mode && cond.Value == mode)
                         );
@@ -177,14 +179,21 @@ namespace ImportSound.VoicePatcherSpace
                     if (__instance is Speaker speakerInstance)
                     {
                         AudioLib.greenLog("START POSTFIX AWAKE SPEAKER");
-                        if (__instance == null || __instance.Interactables.Count() < 4 || __instance.Interactables[4].AssociatedAudioEvents == null)
+                        if (__instance == null || __instance.Interactables == null || __instance.Interactables.Count() == 0 
+                            || !__instance.Interactables
+                                .Any(interact => interact != null && interact.DisplayName == "Mode"))
                         {
-                            AudioLib.errorLog("Speaker Interactables[4] is null or AssociatedAudioEvents is null");
+                            AudioLib.errorLog("Speaker or Interactables is null or empty.");
                             return;
                         }
-
-                        //4 is "Mode" property associated
-                        List<GameAudioEvent> newGameAudioEventList = __instance.Interactables[4].AssociatedAudioEvents;
+                        List<GameAudioEvent> newGameAudioEventList = __instance.Interactables
+                            .FirstOrDefault(interact => interact != null && interact.DisplayName == "Mode")
+                            .AssociatedAudioEvents;
+                        if (newGameAudioEventList == null)
+                        {
+                            AudioLib.errorLog("No AssociatedAudioEvents found in interractabde Mode.");
+                            return;
+                        }
                         List<GameAudioClipsData> importedGameAudioClipsData = AudioManagerLib.GetClipsDataByNamePrefix(AudioLib.getName(FolderEnum.ALARM));
 
                         AudioLib.removeAudioEvent(newGameAudioEventList, importedGameAudioClipsData);
