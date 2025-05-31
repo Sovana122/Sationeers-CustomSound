@@ -274,7 +274,7 @@ namespace ImportSound.AudioLibSpace
 
         public static void initModeAudioEvent(List<GameAudioEvent> newGameAudioEventList)
         {
-            int modeCount = 0;
+            int modeCount = 1; //None is 0
             foreach (GameAudioEvent importGameData in newGameAudioEventList)
             {
                 foreach (SoundEffectCondition condition in importGameData.Conditions)

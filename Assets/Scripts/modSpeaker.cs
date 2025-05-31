@@ -215,7 +215,8 @@ namespace ImportSound.VoicePatcherSpace
                         if (!AudioLib.speakerStaticInitialized)
                         {
                             AudioLib.greenLog("init ModeString");
-                            var newModes = newGameAudioEventList.Select(data => AudioLib.normalizeImportName(data.Name)).ToList();
+                            List<string> newModes = newGameAudioEventList.Select(data => AudioLib.normalizeImportName(data.Name)).ToList();
+                            newModes.Insert(0, "None");
                             set_modeStrings(newModes);
                             reInitModeHashes();
                             AudioLib.speakerStaticInitialized = true;
