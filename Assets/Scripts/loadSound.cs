@@ -146,6 +146,75 @@ namespace ImportSound.CustomSoundManagerSpace
             onComplete?.Invoke(clipList);
         }
 
+        
+        public static void removeAudioClipsData(List<GameAudioClipsData> newClipsData, List<GameAudioClipsData> importedGameAudioClipsData)
+        {
+            List<GameAudioClipsData> toDel = AudioLib.getFlag(importedGameAudioClipsData, "___D");
+            List<GameAudioClipsData> toRemove = new List<GameAudioClipsData>();
+            foreach (GameAudioClipsData gameAudioClipsData in newClipsData)
+            {
+                if (gameAudioClipsData != null && toDel.Any(del => AudioLib.normalizeImportName(del.Name) == gameAudioClipsData.Name))
+                {
+                    AudioLib.greenLog($"Removing {gameAudioClipsData.Name} from newClipsData");
+                    toRemove.Add(gameAudioClipsData);
+                }
+            }
+            foreach (GameAudioClipsData gameAudioClipsData in toRemove)
+            {
+                newClipsData.Remove(gameAudioClipsData);
+            }
+        }
+
+        public static void replaceAudioClipsData(List<GameAudioClipsData> newClipsData, List<GameAudioClipsData> importedGameAudioClipsData)
+        {
+            for (int i = 0; i < newClipsData.Count; i++)
+            {
+                GameAudioClipsData current = newClipsData[i];
+                if (current == null) continue;
+
+                GameAudioClipsData clipReplacing = importedGameAudioClipsData
+                    .FirstOrDefault(import => AudioLib.normalizeImportName(import.Name) == current.Name);
+                if (clipReplacing != null)
+                {
+                    AudioLib.greenLog($"Replacing {current.Name} from newClipsData");
+                    newClipsData[i] = clipReplacing;
+                    importedGameAudioClipsData.Remove(clipReplacing);
+                }
+            }
+        }
+
+        public static Dictionary<int, GameAudioClipsData> createDictAlert(List<GameAudioClipsData> newClipsData)
+        {
+            Dictionary<int, GameAudioClipsData> dicGameAudioClipsData = new Dictionary<int, GameAudioClipsData>();
+            int modeCount = 1; //None is 0
+            foreach (GameAudioClipsData gameAudioClipsData in newClipsData)
+            {
+                dicGameAudioClipsData.Add(modeCount, gameAudioClipsData);
+                modeCount++;
+            }
+            return dicGameAudioClipsData;
+        }
+
+        public static void loadAlerts()
+        {
+            List<GameAudioClipsData> importedGameAudioClipsData = AudioManagerLib.GetClipsDataByNamePrefix(AudioLib.getName(FolderEnum.ALARM));
+            Dictionary<int, GameAudioClipsData> dicGameAudioClipsData = AudioManagerLib.GetClipsDataSoundAlertLookup();
+            List<GameAudioClipsData> newClipsData = dicGameAudioClipsData.Values.ToList();
+            removeAudioClipsData(newClipsData, importedGameAudioClipsData);
+            importedGameAudioClipsData = AudioLib.getNotFlag(importedGameAudioClipsData, "___D");
+            replaceAudioClipsData(newClipsData, importedGameAudioClipsData);
+            newClipsData.AddRange(importedGameAudioClipsData);
+            dicGameAudioClipsData = createDictAlert(newClipsData);
+            AudioManagerLib.SetClipsDataSoundAlertLookup(dicGameAudioClipsData);
+            
+            if (AudioLib.DEBUG_VERBOSE)
+            {
+                AudioLib.printGameAudioClipsDataList(importedGameAudioClipsData);
+                newClipsData = AudioManagerLib.GetClipsDataSoundAlertLookup().Values.ToList();
+                AudioLib.printGameAudioClipsDataList(newClipsData);
+            }
+        }
+
         [HarmonyPatch(typeof(AudioManager), "ManagerAwake")]
         public class AudioManagerAwakePatchPostfix
         {
@@ -179,6 +248,7 @@ namespace ImportSound.CustomSoundManagerSpace
                                 return;
                             }
                             AudioManager.Instance.LoadAudioData(customAudioDataList.ToArray());
+                            loadAlerts();
                             AudioLib.greenLog("END POSTFIX ManagerAwake");
                         }));
                     }

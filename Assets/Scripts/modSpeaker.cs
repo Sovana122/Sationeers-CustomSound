@@ -128,6 +128,64 @@ namespace ImportSound.VoicePatcherSpace
             return newGameAudioEvent;
         }
 
+        public static void removeAudioEvent(List<GameAudioEvent> newGameAudioEventList, List<GameAudioClipsData> importedGameAudioClipsData)
+        {
+            List<GameAudioClipsData> toDel = AudioLib.getFlag(importedGameAudioClipsData, "___D");
+            List<GameAudioEvent> toRemove = new List<GameAudioEvent>();
+            foreach (GameAudioEvent gameAudioEvent in newGameAudioEventList)
+            {
+                if (gameAudioEvent != null && toDel.Any(del => AudioLib.normalizeImportName(del.Name) == gameAudioEvent.Name))
+                {
+                    AudioLib.greenLog($"Removing {gameAudioEvent.Name} from AssociatedAudioEvents");
+                    toRemove.Add(gameAudioEvent);
+                }
+            }
+            foreach (GameAudioEvent gameAudioEvent in toRemove)
+            {
+                newGameAudioEventList.Remove(gameAudioEvent);
+            }
+        }
+
+        public static void replaceAudioEvent(List<GameAudioEvent> newGameAudioEventList, List<GameAudioClipsData> importedGameAudioClipsData)
+        {
+            foreach (GameAudioEvent gameAudioEvent in newGameAudioEventList)
+            {
+                if (gameAudioEvent.ClipsData == null) continue;
+                GameAudioClipsData clipReplacing = importedGameAudioClipsData.FirstOrDefault(import => AudioLib.normalizeImportName(import.Name) == gameAudioEvent.Name);
+                if (clipReplacing != null)
+                {
+                    AudioLib.greenLog($"Replacing {gameAudioEvent.Name} from AssociatedAudioEvents");
+                    gameAudioEvent.ClipsData = clipReplacing;
+                    importedGameAudioClipsData.Remove(clipReplacing);
+                }
+            }
+        }
+
+        public static void addAudioEvent(List<GameAudioEvent> newGameAudioEventList, List<GameAudioClipsData> importedGameAudioClipsData, Speaker speakerInstance)
+        {
+            foreach (GameAudioClipsData importGameData in importedGameAudioClipsData)
+            {
+                GameAudioEvent newGameAudioEvent = createGameAudioEventModeSpeaker(speakerInstance, importGameData);
+                newGameAudioEventList.Add(newGameAudioEvent);
+            }
+        }
+
+        public static void initModeAudioEvent(List<GameAudioEvent> newGameAudioEventList)
+        {
+            int modeCount = 1; //None is 0
+            foreach (GameAudioEvent importGameData in newGameAudioEventList)
+            {
+                foreach (SoundEffectCondition condition in importGameData.Conditions)
+                {
+                    if (condition.Type == InteractableType.Mode)
+                    {
+                        condition.Value = modeCount;
+                    }
+                }
+                modeCount++;
+            }
+        }
+
         #endregion
 
         [HarmonyPatch(typeof(Speaker), "GetContextualName")]
@@ -196,17 +254,11 @@ namespace ImportSound.VoicePatcherSpace
                         }
                         List<GameAudioClipsData> importedGameAudioClipsData = AudioManagerLib.GetClipsDataByNamePrefix(AudioLib.getName(FolderEnum.ALARM));
 
-                        AudioLib.removeAudioEvent(newGameAudioEventList, importedGameAudioClipsData);
+                        removeAudioEvent(newGameAudioEventList, importedGameAudioClipsData);
                         importedGameAudioClipsData = AudioLib.getNotFlag(importedGameAudioClipsData, "___D");
-                        AudioLib.replaceAudioEvent(newGameAudioEventList, importedGameAudioClipsData);
-
-                        foreach (GameAudioClipsData importGameData in importedGameAudioClipsData)
-                        {
-                            GameAudioEvent newGameAudioEvent = createGameAudioEventModeSpeaker(speakerInstance, importGameData);
-                            newGameAudioEventList.Add(newGameAudioEvent);
-                        }
-
-                        AudioLib.initModeAudioEvent(newGameAudioEventList);
+                        replaceAudioEvent(newGameAudioEventList, importedGameAudioClipsData);
+                        addAudioEvent(newGameAudioEventList, importedGameAudioClipsData, speakerInstance);
+                        initModeAudioEvent(newGameAudioEventList);
 
                         __instance.Interactables[4].AssociatedAudioEvents = newGameAudioEventList;
                         //__instance.AudioEvents = newGameAudioEventList.ToList();

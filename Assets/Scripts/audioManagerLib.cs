@@ -130,12 +130,22 @@ namespace ImportSound.AudioManagerLibSpace
 
         #region GET_PRIVATE
 
-        public static Dictionary<int, GameAudioClipsData> GetClipsDataSoundAlertLookup()
+        public static FieldInfo GetClipsDataSoundAlertLookupField()
         {
             FieldInfo fieldInfo = typeof(AudioManager).GetField("_clipsDataSoundAlertLookup", BindingFlags.NonPublic | BindingFlags.Instance);
             if (fieldInfo == null)
             {
                 AudioLib.errorLog("_clipsDataSoundAlertLookup field not found.");
+                return null;
+            }
+            return fieldInfo;
+        }
+
+        public static Dictionary<int, GameAudioClipsData> GetClipsDataSoundAlertLookup()
+        {
+            FieldInfo fieldInfo = GetClipsDataSoundAlertLookupField();
+            if (fieldInfo == null)
+            {
                 return null;
             }
             var clipsDataSoundAlertLookup = fieldInfo.GetValue(AudioManager.Instance) as Dictionary<int, GameAudioClipsData>;
@@ -145,6 +155,16 @@ namespace ImportSound.AudioManagerLibSpace
                 return null;
             }
             return clipsDataSoundAlertLookup;
+        }
+
+        public static void SetClipsDataSoundAlertLookup(Dictionary<int, GameAudioClipsData> newDict)
+        {
+            FieldInfo fieldInfo = GetClipsDataSoundAlertLookupField();
+            if (fieldInfo == null)
+            {
+                return;
+            }
+            fieldInfo.SetValue(AudioManager.Instance, newDict);
         }
 
         public static List<AudioData> GetPooledAudioDataCastList()
