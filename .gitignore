@@ -79,3 +79,4 @@ crashlytics-build.properties
 !/Assets/Assemblies/copy.txt
 
 /doc
+/Assets/GameData/newSounds
