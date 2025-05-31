@@ -103,6 +103,29 @@ namespace ImportSound.AudioManagerLibSpace
             }
         }
 
+        public static GameAudioClipsData isGameAudioClipsDataNameInClipsDataSoundAlertLookup(string name)
+        {
+            if (!AudioLib.DEBUG_VERBOSE)
+                return null;
+            var clipsDataSoundAlertLookup = GetClipsDataSoundAlertLookup();
+            if (clipsDataSoundAlertLookup == null)
+            {
+                return null;
+            }
+            GameAudioClipsData test = clipsDataSoundAlertLookup.Values.FirstOrDefault(clip => clip.Name == name);
+            if (test == null)
+            {
+                AudioLib.redWarnLog("GameAudioClipsData " + name + " absent from _clipsDataSoundAlertLookup audiomanager");
+                return null;
+            }
+            else
+            {
+                AudioLib.greenLog("GameAudioClipsData " + name + " found in _clipsDataSoundAlertLookup audiomanager");
+                printGameAudioClipsData(test);
+                return test;
+            }
+        }
+
         #endregion
 
         #region GET_PRIVATE
@@ -127,29 +150,6 @@ namespace ImportSound.AudioManagerLibSpace
         public static List<AudioData> GetPooledAudioDataCastList()
         {
             return new List<AudioData>(AudioManager.Instance.pooledAudioData);
-        }
-
-        public static GameAudioClipsData isGameAudioClipsDataNameInClipsDataSoundAlertLookup(string name)
-        {
-            if (!AudioLib.DEBUG_VERBOSE)
-                return null;
-            var clipsDataSoundAlertLookup = GetClipsDataSoundAlertLookup();
-            if (clipsDataSoundAlertLookup == null)
-            {
-                return null;
-            }
-            GameAudioClipsData test = clipsDataSoundAlertLookup.Values.FirstOrDefault(clip => clip.Name == name);
-            if (test == null)
-            {
-                AudioLib.redWarnLog("GameAudioClipsData " + name + " absent from _clipsDataSoundAlertLookup audiomanager");
-                return null;
-            }
-            else
-            {
-                AudioLib.greenLog("GameAudioClipsData " + name + " found in _clipsDataSoundAlertLookup audiomanager");
-                printGameAudioClipsData(test);
-                return test;
-            }
         }
 
         public static Dictionary<int, GameAudioClipsData> GetClipsDataHashLookup()

@@ -75,45 +75,6 @@ namespace ImportSound.VoicePatcherSpace
 
         #region MODIF_PRIVATE
 
-        /*
-        public static void del2()
-        {
-            FieldInfo modeStringsField = get_modeStrings();
-            if (modeStringsField == null)
-            {
-                return;
-            }
-            List<string> modeStringsList = new List<string>((string[])modeStringsField.GetValue(null));
-            modeStringsList.RemoveRange(modeStringsList.Count - 2, 2);
-            modeStringsField.SetValue(null, modeStringsList.ToArray());
-        }*/
-
-        /*
-        public static void addToModeStrings(List<string> newModeList)
-        {
-            FieldInfo modeStringsField = get_modeStrings();
-            if (modeStringsField == null)
-            {
-                return;
-            }
-            List<string> modeStringsList = new List<string>((string[])modeStringsField.GetValue(null));
-            modeStringsList.AddRange(newModeList);
-            modeStringsField.SetValue(null, modeStringsList.ToArray());
-        }*/
-
-        /*
-        public static void addToModeStrings(string newMode)
-        {
-            FieldInfo modeStringsField = get_modeStrings();
-            if (modeStringsField == null)
-            {
-                return;
-            }
-            List<string> modeStringsList = new List<string>((string[])modeStringsField.GetValue(null));
-            modeStringsList.Add(newMode);
-            modeStringsField.SetValue(null, modeStringsList.ToArray());
-        }*/
-
         public static void set_modeStrings(List<string> list)
         {
             FieldInfo modeStringsField = get_modeStringsField();
@@ -124,7 +85,7 @@ namespace ImportSound.VoicePatcherSpace
             modeStringsField.SetValue(null, list.ToArray());
         }
 
-        public static void ReInitModeHashes()
+        public static void reInitModeHashes()
         {
             FieldInfo modeHashesField = getModeHashesField();
             if (modeHashesField == null)
@@ -180,22 +141,6 @@ namespace ImportSound.VoicePatcherSpace
                 .Where(data => !data.Name.EndsWith(flag, StringComparison.OrdinalIgnoreCase))
                 .ToList();
         }
-        /*
-        public static List<GameAudioClipsData> unFlag(List<GameAudioClipsData> list, string flag)
-        {
-            if (string.IsNullOrEmpty(flag)) 
-            {
-                return list;
-            }
-            foreach (var data in list)
-            {
-                if (data.Name != null && data.Name.EndsWith(flag, StringComparison.OrdinalIgnoreCase))
-                {
-                    data.Name = data.Name.Substring(0, data.Name.Length - flag.Length);
-                }
-            }
-            return list;
-        }*/
 
         public static string normalizeImportName(string input)
         {
@@ -321,7 +266,7 @@ namespace ImportSound.VoicePatcherSpace
                             AudioLib.greenLog("init ModeString");
                             var newModes = newGameAudioEventList.Select(data => normalizeImportName(data.Name)).ToList();
                             set_modeStrings(newModes);
-                            ReInitModeHashes();
+                            reInitModeHashes();
                             AudioLib.speakerStaticInitialized = true;
                         }
 
