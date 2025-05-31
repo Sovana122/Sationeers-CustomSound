@@ -43,7 +43,8 @@ namespace ImportSound.AudioManagerLibSpace
             $"Length: {audioClip.length}s,\n" +
             $"Samples: {audioClip.samples},\n" +
             $"Frequency: {audioClip.frequency}Hz,\n" +
-            $"Channels: {audioClip.channels}");
+            $"Channels: {audioClip.channels}"
+            );
         }
 
         public static void printGameAudioClipsData(GameAudioClipsData gameAudioClipsData)

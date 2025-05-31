@@ -37,6 +37,7 @@ namespace ImportSound.AudioLibSpace
     public static class AudioLib
     {
         public static bool DEBUG_VERBOSE = false;
+        public static bool speakerStaticInitialized = false;
 
         public static string DATA_FOLDER = "GameData";
         public static string SOUND_FOLDER = "newSounds";
@@ -81,10 +82,16 @@ namespace ImportSound.AudioLibSpace
                 redWarnLog("gameAudioClipsDataList empty");
                 return;
             }
+            string print = "";
             foreach (GameAudioClipsData gameAudioClipsData in gameAudioClipsDataList)
             {
-                AudioManagerLib.printGameAudioClipsData(gameAudioClipsData);
+                print += gameAudioClipsData.Name + "\n";
+                foreach (AudioClip audioClip in gameAudioClipsData.Clips)
+                {
+                    print += "clip : " + audioClip.name + "\n";
+                }
             }
+            AudioLib.cyanLog(print);
         }
 
         public static void printImportedLangList()
@@ -114,6 +121,44 @@ namespace ImportSound.AudioLibSpace
                 string json = JsonUtility.ToJson(anonym, true);
                 cyanLog(json);
             }
+        }
+
+        public static void printGameAudioEvent(GameAudioEvent gameAudioEvent)
+        {
+            if (!AudioLib.DEBUG_VERBOSE)
+                return;
+            string json = JsonUtility.ToJson(gameAudioEvent, true);
+            AudioLib.cyanLog(json);
+            foreach (AudioClip audioClip in gameAudioEvent.ClipsData.Clips)
+            {
+                AudioManagerLib.printAudioClip(audioClip);
+            }
+        }
+
+        public static void printGameAudioEventList(List<GameAudioEvent> gameAudioEventList)
+        {
+            if (!DEBUG_VERBOSE)
+                return;
+            if (gameAudioEventList == null)
+            {
+                redWarnLog("gameAudioEventList NULL");
+                return;
+            }
+            if (gameAudioEventList.Count == 0)
+            {
+                redWarnLog("gameAudioEventList empty");
+                return;
+            }
+            string print = "";
+            foreach (GameAudioEvent gameAudioEvent in gameAudioEventList)
+            {
+                print += gameAudioEvent.Name + "\n";
+                foreach (AudioClip audioClip in gameAudioEvent.ClipsData.Clips)
+                {
+                    print += "clip : " + audioClip.name + "\n";
+                }
+            }
+            AudioLib.cyanLog(print);
         }
 
         #endregion

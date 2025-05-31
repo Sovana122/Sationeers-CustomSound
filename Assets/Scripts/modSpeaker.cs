@@ -27,48 +27,9 @@ namespace ImportSound.VoicePatcherSpace
 {
     public static class SpeakerPatcher
     {
-        private static bool _modeStringsInitialized = false;
+        #region GET_PRIVATE
 
-        public static void del2()
-        {
-            FieldInfo modeStringsField = typeof(Speaker).GetField("modeStrings", BindingFlags.Static | BindingFlags.Public);
-            if (modeStringsField == null)
-            {
-                AudioLib.errorLog("Field 'modeStrings' not found in spaker");
-                return;
-            }
-            List<string> modeStringsList = new List<string>((string[])modeStringsField.GetValue(null));
-            modeStringsList.RemoveRange(modeStringsList.Count - 2, 2);
-            modeStringsField.SetValue(null, modeStringsList.ToArray());
-        }
-
-        public static void addToModeStrings(List<string> newModeList)
-        {
-            FieldInfo modeStringsField = typeof(Speaker).GetField("modeStrings", BindingFlags.Static | BindingFlags.Public);
-            if (modeStringsField == null)
-            {
-                AudioLib.errorLog("Field 'modeStrings' not found in spaker");
-                return;
-            }
-            List<string> modeStringsList = new List<string>((string[])modeStringsField.GetValue(null));
-            modeStringsList.AddRange(newModeList);
-            modeStringsField.SetValue(null, modeStringsList.ToArray());
-        }
-
-        public static void addToModeStrings(string newMode)
-        {
-            FieldInfo modeStringsField = typeof(Speaker).GetField("modeStrings", BindingFlags.Static | BindingFlags.Public);
-            if (modeStringsField == null)
-            {
-                AudioLib.errorLog("Field 'modeStrings' not found in spaker");
-                return;
-            }
-            List<string> modeStringsList = new List<string>((string[])modeStringsField.GetValue(null));
-            modeStringsList.Add(newMode);
-            modeStringsField.SetValue(null, modeStringsList.ToArray());
-        }
-
-        public static string[] getModeStrings()
+        public static FieldInfo get_modeStringsField()
         {
             FieldInfo modeStringsField = typeof(Speaker).GetField("modeStrings", BindingFlags.Static | BindingFlags.Public);
             if (modeStringsField == null)
@@ -76,19 +37,178 @@ namespace ImportSound.VoicePatcherSpace
                 AudioLib.errorLog("Field 'modeStrings' not found in spaker");
                 return null;
             }
+            return modeStringsField;
+        }
+
+        public static string[] get_modeStrings()
+        {
+            FieldInfo modeStringsField = get_modeStringsField();
+            if (modeStringsField == null)
+            {
+                return null;
+            }
             return (string[])modeStringsField.GetValue(null);
         }
 
-        public static void ReInitModeHashes()
+        public static FieldInfo getModeHashesField()
         {
             FieldInfo modeHashesField = typeof(Speaker).GetField("ModeHashes", BindingFlags.Static | BindingFlags.Public);
             if (modeHashesField == null)
             {
-                AudioLib.errorLog   ("Field 'ModeHashes' not found in spaker");
+                AudioLib.errorLog("Field 'ModeHashes' not found in spaker");
+                return null;
+            }
+            return modeHashesField;
+        }
+
+        public static string[] getModeHashes()
+        {
+            FieldInfo modeHashesField = getModeHashesField();
+            if (modeHashesField == null)
+            {
+                return null;
+            }
+            return (string[])modeHashesField.GetValue(null);
+        }
+
+        #endregion
+
+        #region MODIF_PRIVATE
+
+        /*
+        public static void del2()
+        {
+            FieldInfo modeStringsField = get_modeStrings();
+            if (modeStringsField == null)
+            {
+                return;
+            }
+            List<string> modeStringsList = new List<string>((string[])modeStringsField.GetValue(null));
+            modeStringsList.RemoveRange(modeStringsList.Count - 2, 2);
+            modeStringsField.SetValue(null, modeStringsList.ToArray());
+        }*/
+
+        /*
+        public static void addToModeStrings(List<string> newModeList)
+        {
+            FieldInfo modeStringsField = get_modeStrings();
+            if (modeStringsField == null)
+            {
+                return;
+            }
+            List<string> modeStringsList = new List<string>((string[])modeStringsField.GetValue(null));
+            modeStringsList.AddRange(newModeList);
+            modeStringsField.SetValue(null, modeStringsList.ToArray());
+        }*/
+
+        /*
+        public static void addToModeStrings(string newMode)
+        {
+            FieldInfo modeStringsField = get_modeStrings();
+            if (modeStringsField == null)
+            {
+                return;
+            }
+            List<string> modeStringsList = new List<string>((string[])modeStringsField.GetValue(null));
+            modeStringsList.Add(newMode);
+            modeStringsField.SetValue(null, modeStringsList.ToArray());
+        }*/
+
+        public static void set_modeStrings(List<string> list)
+        {
+            FieldInfo modeStringsField = get_modeStringsField();
+            if (modeStringsField == null)
+            {
+                return;
+            }
+            modeStringsField.SetValue(null, list.ToArray());
+        }
+
+        public static void ReInitModeHashes()
+        {
+            FieldInfo modeHashesField = getModeHashesField();
+            if (modeHashesField == null)
+            {
                 return;
             }
             modeHashesField.SetValue(null, Speaker.modeStrings.Select(new Func<string, int>(Animator.StringToHash)).ToArray<int>());
         }
+
+        #endregion
+
+        #region HELPER
+
+        public static GameAudioEvent createGameAudioEventModeSpeaker(Speaker speakerInstance, GameAudioClipsData importGameData)
+        {
+            GameAudioEvent newGameAudioEvent = new GameAudioEvent
+            {
+                Name = importGameData.Name,
+                NameHash = importGameData.NameHash,
+                ClipsData = importGameData,
+                StopIfInvalid = true,
+                Conditions = new List<SoundEffectCondition>(),
+                Parent = speakerInstance,
+            };
+            newGameAudioEvent.Conditions.Add(new SoundEffectCondition
+            {
+                Type = InteractableType.OnOff,
+                Value = 1
+            });
+            newGameAudioEvent.Conditions.Add(new SoundEffectCondition
+            {
+                Type = InteractableType.Powered,
+                Value = 1
+            });
+            newGameAudioEvent.Conditions.Add(new SoundEffectCondition
+            {
+                Type = InteractableType.Mode,
+                Value = -1,
+            });
+            return newGameAudioEvent;
+        }
+
+        public static List<GameAudioClipsData> getFlag(List<GameAudioClipsData> list, string flag)
+        {
+            return list
+                .Where(data => data.Name.EndsWith(flag, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+
+        public static List<GameAudioClipsData> getNotFlag(List<GameAudioClipsData> list, string flag)
+        {
+            return list
+                .Where(data => !data.Name.EndsWith(flag, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+        /*
+        public static List<GameAudioClipsData> unFlag(List<GameAudioClipsData> list, string flag)
+        {
+            if (string.IsNullOrEmpty(flag)) 
+            {
+                return list;
+            }
+            foreach (var data in list)
+            {
+                if (data.Name != null && data.Name.EndsWith(flag, StringComparison.OrdinalIgnoreCase))
+                {
+                    data.Name = data.Name.Substring(0, data.Name.Length - flag.Length);
+                }
+            }
+            return list;
+        }*/
+
+        public static string normalizeImportName(string input)
+        {
+            if (string.IsNullOrEmpty(input)) return input;
+            var parts = input.Split(new[] { "___" }, StringSplitOptions.None);
+            if (parts.Length == 0) return input;
+            string last = parts[parts.Length - 1];
+            if ((last == "D" || last == "F" || last == "T") && parts.Length > 1)
+                return parts[parts.Length - 2];
+            return last;
+        }
+
+        #endregion
 
         [HarmonyPatch(typeof(Speaker), "GetContextualName")]
         public class ThingGetContextualNamePatchPrefix
@@ -127,7 +247,7 @@ namespace ImportSound.VoicePatcherSpace
             }
         }
 
-                    [HarmonyPatch(typeof(Thing), "Awake")]
+        [HarmonyPatch(typeof(Thing), "Awake")]
         public class ThingAwakePatchPostfix
         {
             static void Postfix(Thing __instance)
@@ -137,70 +257,72 @@ namespace ImportSound.VoicePatcherSpace
                     if (__instance is Speaker speakerInstance)
                     {
                         AudioLib.greenLog("START POSTFIX AWAKE SPEAKER");
-
-                        List<GameAudioClipsData> importedGameAudioClipsData = AudioManagerLib.GetClipsDataByNamePrefix(AudioLib.getName(FolderEnum.ALARM));
-                        List<GameAudioEvent> newGameAudioEventList = new List<GameAudioEvent>();
-                        //AudioLib.printGameAudioClipsDataList(importedGameAudioClipsData);
-                        
-                        int i = 1;
-                        foreach (GameAudioClipsData importGameData in importedGameAudioClipsData)
-                        {
-                            GameAudioEvent newGameAudioEvent = new GameAudioEvent
-                            {
-                                Name = importGameData.Name,
-                                NameHash = importGameData.NameHash,
-                                ClipsData = importGameData,
-                                StopIfInvalid = true,
-                                Conditions = new List<SoundEffectCondition>(),
-                                Parent = speakerInstance,
-
-                            };
-                            newGameAudioEvent.Conditions.Add(new SoundEffectCondition
-                            {
-                                Type = InteractableType.OnOff,
-                                Value = 1
-                            });
-                            newGameAudioEvent.Conditions.Add(new SoundEffectCondition
-                            {
-                                Type = InteractableType.Powered,
-                                Value = 1
-                            });
-                            newGameAudioEvent.Conditions.Add(new SoundEffectCondition
-                            {
-                                Type = InteractableType.Mode,
-                                Value = __instance.Interactables[4].AssociatedAudioEvents.Count() + i
-                            });
-                            AudioLib.printObj(newGameAudioEvent);
-                            newGameAudioEventList.Add(newGameAudioEvent);
-                            i++;
-                        }
                         if (__instance == null || __instance.Interactables.Count() < 4 || __instance.Interactables[4].AssociatedAudioEvents == null)
                         {
                             AudioLib.errorLog("Speaker Interactables[4] is null or AssociatedAudioEvents is null");
                             return;
                         }
-                        AudioLib.greenLog(__instance.Interactables[4].AssociatedAudioEvents.Count().ToString());
-                        //__instance.Interactables[4].AssociatedAudioEvents.RemoveRange(__instance.Interactables[4].AssociatedAudioEvents.Count - 2, 2);
-                        __instance.Interactables[4].AssociatedAudioEvents.AddRange(newGameAudioEventList); //4 is "Mode" property associated
-                        //__instance.Interactables[4].AssociatedAudioEvents.Add(__instance.Interactables[4].AssociatedAudioEvents[__instance.Interactables[4].AssociatedAudioEvents.Count - 1]);
-                        //__instance.Interactables[4].AssociatedAudioEvents.Add(__instance.Interactables[4].AssociatedAudioEvents[__instance.Interactables[4].AssociatedAudioEvents.Count - 1]);
-                        AudioLib.greenLog(__instance.Interactables[4].AssociatedAudioEvents.Count().ToString());
-                        AudioLib.greenLog(__instance.AudioEvents.Count().ToString());
-                        //__instance.AudioEvents.RemoveRange(__instance.AudioEvents.Count - 2, 2);
-                        __instance.AudioEvents.AddRange(newGameAudioEventList);
-                        //__instance.AudioEvents.Add(__instance.AudioEvents[__instance.AudioEvents.Count - 1]);
-                        //__instance.AudioEvents.Add(__instance.AudioEvents[__instance.AudioEvents.Count - 1]);
-                        AudioLib.greenLog(__instance.AudioEvents.Count().ToString());
-                        if (!_modeStringsInitialized && Speaker.modeStrings.Length == 46)
+
+                        //4 is "Mode" property associated
+                        List<GameAudioEvent> newGameAudioEventList = __instance.Interactables[4].AssociatedAudioEvents;
+
+                        List<GameAudioClipsData> importedGameAudioClipsData = AudioManagerLib.GetClipsDataByNamePrefix(AudioLib.getName(FolderEnum.ALARM));
+                        List<GameAudioClipsData> toDel = getFlag(importedGameAudioClipsData, "___D");
+                        List<GameAudioEvent> toRemove = new List<GameAudioEvent>();
+                        foreach (GameAudioEvent gameAudioEvent in newGameAudioEventList)
+                        {
+                            if (gameAudioEvent != null && toDel.Any(del => normalizeImportName(del.Name) == gameAudioEvent.Name))
+                            {
+                                AudioLib.greenLog($"Removing {gameAudioEvent.Name} from AssociatedAudioEvents");
+                                toRemove.Add(gameAudioEvent);
+                            }
+                        }
+                        foreach (GameAudioEvent gameAudioEvent in toRemove)
+                        {
+                            __instance.Interactables[4].AssociatedAudioEvents.Remove(gameAudioEvent);
+                        }
+                        importedGameAudioClipsData = getNotFlag(importedGameAudioClipsData, "___D");
+                        foreach (GameAudioEvent gameAudioEvent in newGameAudioEventList)
+                        {
+                            if (gameAudioEvent.ClipsData == null) continue;
+                            GameAudioClipsData clipReplacing = importedGameAudioClipsData.FirstOrDefault(import => normalizeImportName(import.Name) == gameAudioEvent.Name);
+                            if (clipReplacing != null)
+                            {
+                                AudioLib.greenLog($"Replacing {gameAudioEvent.Name} from AssociatedAudioEvents");
+                                gameAudioEvent.ClipsData = clipReplacing;
+                                importedGameAudioClipsData.Remove(clipReplacing);
+                            }
+                        }
+
+                        foreach (GameAudioClipsData importGameData in importedGameAudioClipsData)
+                        {
+                            GameAudioEvent newGameAudioEvent = createGameAudioEventModeSpeaker(speakerInstance, importGameData);
+                            newGameAudioEventList.Add(newGameAudioEvent);
+                        }
+                        int modeCount = 0;
+                        foreach (GameAudioEvent importGameData in newGameAudioEventList)
+                        {
+                            foreach (SoundEffectCondition condition in importGameData.Conditions)
+                            {
+                                if (condition.Type == InteractableType.Mode)
+                                {
+                                    condition.Value = modeCount;
+                                }
+                            }
+                            modeCount++;
+                        }
+
+                        __instance.Interactables[4].AssociatedAudioEvents = newGameAudioEventList;
+                        //__instance.AudioEvents = newGameAudioEventList.ToList();
+                        //AUDIOEVENTLOOKUP
+
+                        if (!AudioLib.speakerStaticInitialized)
                         {
                             AudioLib.greenLog("init ModeString");
-                            //del2();
-                            var test = importedGameAudioClipsData.Select(data => data.Name).ToList();
-                            //AudioLib.printObj(test);
-                            addToModeStrings(importedGameAudioClipsData.Select(data => data.Name).ToList());
-                            //addToModeStrings(getModeStrings()[0]);
-                            //addToModeStrings(getModeStrings()[0]);
+                            var newModes = newGameAudioEventList.Select(data => normalizeImportName(data.Name)).ToList();
+                            set_modeStrings(newModes);
                             ReInitModeHashes();
+                            AudioLib.speakerStaticInitialized = true;
                         }
 
 
