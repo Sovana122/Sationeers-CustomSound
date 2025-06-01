@@ -252,9 +252,64 @@ namespace ImportSound.AudioManagerLibSpace
             return pathSegments[0];
         }
 
+        public static string GetFileNameWithFlag(string absPath, string subFolder)
+        {
+            var foundFlags = new List<string>();
+
+            //Path after subfolder
+            string folderPath = Path.Combine(AudioLib.SOUND_FOLDER, subFolder);
+            int idx = absPath.IndexOf(folderPath, StringComparison.OrdinalIgnoreCase);
+            if (idx < 0)
+                return Path.GetFileNameWithoutExtension(absPath);
+            string afterSubFolder = absPath.Substring(idx + folderPath.Length)
+                .TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+            //split folders and file name
+            string[] segments = afterSubFolder.Split(
+                new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar },
+                StringSplitOptions.RemoveEmptyEntries);
+            if (segments.Length == 0)
+                return Path.GetFileNameWithoutExtension(absPath);
+
+            //Flags list
+            for (int i = 0; i < segments.Length; i++)
+            {
+                string name = i == segments.Length - 1 //Last is file name
+                    ? Path.GetFileNameWithoutExtension(segments[i]) //file name
+                    : segments[i]; //folder name
+                foreach (var flag in AudioLib.FlagNames.Values)
+                {
+                    if (EndsWithFlag(name, flag))
+                    {
+                        foundFlags.Add(flag);
+                        break;
+                    }
+                }
+            }
+
+            if (foundFlags.Count == 0)
+                return Path.GetFileNameWithoutExtension(segments.Last());
+
+            //Select flag
+            string selectedFlag = foundFlags.Contains(AudioLib.getPrioFlag()) ? AudioLib.getPrioFlag() : foundFlags.Last();
+
+            //Get rid of flag in file name
+            string fileName = Path.GetFileNameWithoutExtension(segments.Last());
+            foreach (var flag in AudioLib.FlagNames.Values)
+            {
+                if (EndsWithFlag(fileName, flag))
+                {
+                    fileName = fileName.Substring(0, fileName.Length - flag.Length);
+                    break;
+                }
+            }
+            return (fileName + selectedFlag);
+        }
+
         public static string GetClipName(string absPath)
         {
             string languageDirName = null;
+            string fileName = null;
             string subFolder = GetSoundSubFolderNameFromPath(absPath);
             if (subFolder == AudioLib.SoundSubFolderNames[FolderEnum.SUIT])
             {
@@ -277,17 +332,21 @@ namespace ImportSound.AudioManagerLibSpace
                         AudioLib.importedLangList.Add(newImported);
                     }
                 }
+                fileName = Path.GetFileNameWithoutExtension(absPath);
             }
-            string fileName = Path.GetFileNameWithoutExtension(absPath);
+            else
+            {
+                fileName = GetFileNameWithFlag(absPath, subFolder);
+            }
             string normalized = fileName.Replace(Path.DirectorySeparatorChar, '_').Replace(Path.AltDirectorySeparatorChar, '_');
             if (languageDirName != null)
-                return $"{subFolder}___{languageDirName}___{normalized}";
-            return $"{subFolder}___{normalized}";
+                return ($"{subFolder}___{languageDirName}___{normalized}");
+            return ($"{subFolder}___{normalized}");
         }
 
-        public static bool EndsWith___F(string input)
+        public static bool EndsWithFlag(string input, string flag)
         {
-            return input.EndsWith("___F", StringComparison.OrdinalIgnoreCase);
+            return input.EndsWith(flag, StringComparison.OrdinalIgnoreCase);
         }
 
         public static AudioData createAudioData(AudioClip clip, bool loop)

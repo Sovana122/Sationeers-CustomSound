@@ -26,6 +26,12 @@ namespace ImportSound.AudioLibSpace
         ALARM,
         SUIT
     }
+    public enum FlagEnum
+    {
+        LOOP_FALSE,
+        LOOP_TRUE,
+        DELETE
+    }
 
     public class ImportedLang
     {
@@ -41,6 +47,7 @@ namespace ImportSound.AudioLibSpace
 
         public static string DATA_FOLDER = "GameData";
         public static string SOUND_FOLDER = "newSounds";
+        public static FlagEnum PRIOFLAG = FlagEnum.DELETE;
 
         public static List<ImportedLang> importedLangList = new List<ImportedLang>();
 
@@ -49,8 +56,19 @@ namespace ImportSound.AudioLibSpace
             { FolderEnum.ALARM, "newAlarms" },
             { FolderEnum.SUIT, "newSuitVoices" }
         };
+        public static readonly Dictionary<FlagEnum, string> FlagNames = new()
+        {
+            { FlagEnum.LOOP_FALSE, "___F" },
+            { FlagEnum.LOOP_TRUE, "___T" },
+            { FlagEnum.DELETE, "___D" }
+        };
 
         #region HELPER
+
+        public static string getPrioFlag()
+        {
+            return FlagNames[PRIOFLAG];
+        }
 
         public static string getName(FolderEnum num)
         {

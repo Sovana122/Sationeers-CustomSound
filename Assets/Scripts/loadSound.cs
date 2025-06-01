@@ -201,7 +201,7 @@ namespace ImportSound.CustomSoundManagerSpace
             Dictionary<int, GameAudioClipsData> dicGameAudioClipsData = AudioManagerLib.GetClipsDataSoundAlertLookup();
             List<GameAudioClipsData> newClipsData = dicGameAudioClipsData.Values.ToList();
             removeAudioClipsData(newClipsData, importedGameAudioClipsData);
-            importedGameAudioClipsData = AudioLib.getNotFlag(importedGameAudioClipsData, "___D");
+            importedGameAudioClipsData = AudioLib.getNotFlag(importedGameAudioClipsData, AudioLib.FlagNames[FlagEnum.DELETE]);
             replaceAudioClipsData(newClipsData, importedGameAudioClipsData);
             newClipsData.AddRange(importedGameAudioClipsData);
             dicGameAudioClipsData = createDictAlert(newClipsData);
@@ -238,7 +238,7 @@ namespace ImportSound.CustomSoundManagerSpace
 
                             foreach (AudioClip audioClipLoaded in clipList)
                             {
-                                bool loop = !AudioManagerLib.EndsWith___F(audioClipLoaded.name);
+                                bool loop = !AudioManagerLib.EndsWithFlag(audioClipLoaded.name, AudioLib.FlagNames[FlagEnum.LOOP_FALSE]);
                                 AudioData customAudioData = AudioManagerLib.createAudioData(audioClipLoaded, loop);
                                 customAudioDataList.Add(customAudioData);
                             }

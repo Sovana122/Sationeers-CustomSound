@@ -29,12 +29,23 @@ namespace ImportSound.VoicePatcherSpace
     {
         #region GET_PRIVATE
 
+        public static FieldInfo get_audioEventLookupField()
+        {
+            FieldInfo audioEventLookupField = typeof(Thing).GetField("_audioEventLookup", BindingFlags.NonPublic | BindingFlags.Instance);
+            if (audioEventLookupField == null)
+            {
+                AudioLib.errorLog("Field '_audioEventLookup' not found in Thing");
+                return null;
+            }
+            return audioEventLookupField;
+        }
+
         public static FieldInfo get_modeStringsField()
         {
             FieldInfo modeStringsField = typeof(Speaker).GetField("modeStrings", BindingFlags.Static | BindingFlags.Public);
             if (modeStringsField == null)
             {
-                AudioLib.errorLog("Field 'modeStrings' not found in spaker");
+                AudioLib.errorLog("Field 'modeStrings' not found in Speaker");
                 return null;
             }
             return modeStringsField;
@@ -55,7 +66,7 @@ namespace ImportSound.VoicePatcherSpace
             FieldInfo modeHashesField = typeof(Speaker).GetField("ModeHashes", BindingFlags.Static | BindingFlags.Public);
             if (modeHashesField == null)
             {
-                AudioLib.errorLog("Field 'ModeHashes' not found in spaker");
+                AudioLib.errorLog("Field 'ModeHashes' not found in Speaker");
                 return null;
             }
             return modeHashesField;
@@ -95,6 +106,16 @@ namespace ImportSound.VoicePatcherSpace
             modeHashesField.SetValue(null, Speaker.modeStrings.Select(new Func<string, int>(Animator.StringToHash)).ToArray<int>());
         }
 
+        public static void set_audioEventLookup(Thing instance, Dictionary<int, GameAudioEvent> dict)
+        {
+            FieldInfo _audioEventLookupField = get_audioEventLookupField();
+            if (_audioEventLookupField == null)
+            {
+                return;
+            }
+            _audioEventLookupField.SetValue(instance, dict);
+        }
+
         #endregion
 
         #region HELPER
@@ -130,7 +151,7 @@ namespace ImportSound.VoicePatcherSpace
 
         public static void removeAudioEvent(List<GameAudioEvent> newGameAudioEventList, List<GameAudioClipsData> importedGameAudioClipsData)
         {
-            List<GameAudioClipsData> toDel = AudioLib.getFlag(importedGameAudioClipsData, "___D");
+            List<GameAudioClipsData> toDel = AudioLib.getFlag(importedGameAudioClipsData, AudioLib.FlagNames[FlagEnum.DELETE]);
             List<GameAudioEvent> toRemove = new List<GameAudioEvent>();
             foreach (GameAudioEvent gameAudioEvent in newGameAudioEventList)
             {
@@ -244,9 +265,9 @@ namespace ImportSound.VoicePatcherSpace
                             AudioLib.errorLog("Speaker or Interactables is null or empty.");
                             return;
                         }
-                        List<GameAudioEvent> newGameAudioEventList = __instance.Interactables
-                            .FirstOrDefault(interact => interact != null && interact.DisplayName == "Mode")
-                            .AssociatedAudioEvents;
+                        Interactable modeInteract = __instance.Interactables
+                            .FirstOrDefault(interact => interact != null && interact.DisplayName == "Mode");
+                        List<GameAudioEvent> newGameAudioEventList = modeInteract.AssociatedAudioEvents;
                         if (newGameAudioEventList == null)
                         {
                             AudioLib.errorLog("No AssociatedAudioEvents found in interractabde Mode.");
@@ -255,14 +276,17 @@ namespace ImportSound.VoicePatcherSpace
                         List<GameAudioClipsData> importedGameAudioClipsData = AudioManagerLib.GetClipsDataByNamePrefix(AudioLib.getName(FolderEnum.ALARM));
 
                         removeAudioEvent(newGameAudioEventList, importedGameAudioClipsData);
-                        importedGameAudioClipsData = AudioLib.getNotFlag(importedGameAudioClipsData, "___D");
+                        importedGameAudioClipsData = AudioLib.getNotFlag(importedGameAudioClipsData, AudioLib.FlagNames[FlagEnum.DELETE]);
                         replaceAudioEvent(newGameAudioEventList, importedGameAudioClipsData);
                         addAudioEvent(newGameAudioEventList, importedGameAudioClipsData, speakerInstance);
                         initModeAudioEvent(newGameAudioEventList);
+                        Dictionary<int, GameAudioEvent> gameAudioEventDict = newGameAudioEventList
+                            .Where(e => e != null)
+                            .ToDictionary(e => e.NameHash, e => e);
 
-                        __instance.Interactables[4].AssociatedAudioEvents = newGameAudioEventList;
-                        //__instance.AudioEvents = newGameAudioEventList.ToList();
-                        //AUDIOEVENTLOOKUP
+                        modeInteract.AssociatedAudioEvents = newGameAudioEventList;
+                        __instance.AudioEvents = newGameAudioEventList.ToList();
+                        set_audioEventLookup(__instance, gameAudioEventDict);
 
                         if (!AudioLib.speakerStaticInitialized)
                         {
