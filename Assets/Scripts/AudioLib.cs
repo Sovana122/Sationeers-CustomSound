@@ -18,6 +18,7 @@ using Cysharp.Threading.Tasks;
 using Audio;
 using Sound;
 using ImportSound.AudioManagerLibSpace;
+using BepInEx.Configuration;
 
 namespace ImportSound.AudioLibSpace
 {
@@ -42,7 +43,9 @@ namespace ImportSound.AudioLibSpace
 
     public static class AudioLib
     {
-        public static bool DEBUG_VERBOSE = false;
+        public static ConfigEntry<bool> DebugVerbose;
+        public static bool DEBUG_VERBOSE => DebugVerbose?.Value == true;
+
         public static bool speakerStaticInitialized = false;
 
         public static string DATA_FOLDER = "GameData";

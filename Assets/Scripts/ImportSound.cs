@@ -1,5 +1,6 @@
+using BepInEx;
+using BepInEx.Configuration;
 using HarmonyLib;
-using StationeersMods.Interface;
 using System;
 using System.IO;
 using System.Linq;
@@ -25,20 +26,16 @@ using Sound;
 
 namespace ImportSound.Mod
 {
-    [StationeersMod("ImportSoundClass", "ImportSoundClass [StationeersMods]", "0.2.4657.21547.1")]
-    public class ImportSoundClass : ModBehaviour
-    { 
-
-
-        public override void OnLoaded(ContentHandler contentHandler)
+    [BepInPlugin("com.sovana.importsound", "ImportSound", "1.0.0")]
+    public class ImportSoundClass : BaseUnityPlugin
+    {
+        private void Awake()
         {
             try
             {
                 AudioLib.greenLog("IMPORTSOUND START");
 
-                GameObject go = new GameObject("CustomSoundManager");
-                go.AddComponent<CustomSoundManager>();
-                GameObject.DontDestroyOnLoad(go);
+                AudioLib.DebugVerbose = Config.Bind("Debug", "Verbose", false, "Print some debug logs from the mod");
 
                 var harmony = new Harmony("ImportSound");
                 harmony.PatchAll();

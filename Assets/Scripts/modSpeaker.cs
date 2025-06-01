@@ -157,7 +157,7 @@ namespace ImportSound.VoicePatcherSpace
             {
                 if (gameAudioEvent != null && toDel.Any(del => AudioLib.normalizeImportName(del.Name) == gameAudioEvent.Name))
                 {
-                    AudioLib.greenLog($"Removing {gameAudioEvent.Name} from AssociatedAudioEvents");
+                    AudioLib.greenLog($"Removing {gameAudioEvent.Name} from AssociatedAudioEvents from Speaker");
                     toRemove.Add(gameAudioEvent);
                 }
             }
@@ -175,7 +175,7 @@ namespace ImportSound.VoicePatcherSpace
                 GameAudioClipsData clipReplacing = importedGameAudioClipsData.FirstOrDefault(import => AudioLib.normalizeImportName(import.Name) == gameAudioEvent.Name);
                 if (clipReplacing != null)
                 {
-                    AudioLib.greenLog($"Replacing {gameAudioEvent.Name} from AssociatedAudioEvents");
+                    AudioLib.greenLog($"Replacing {gameAudioEvent.Name} from AssociatedAudioEvents from Speaker");
                     gameAudioEvent.ClipsData = clipReplacing;
                     importedGameAudioClipsData.Remove(clipReplacing);
                 }
@@ -188,6 +188,7 @@ namespace ImportSound.VoicePatcherSpace
             {
                 GameAudioEvent newGameAudioEvent = createGameAudioEventModeSpeaker(speakerInstance, importGameData);
                 newGameAudioEventList.Add(newGameAudioEvent);
+                AudioLib.greenLog($"Adding {newGameAudioEvent.Name} in AssociatedAudioEvents from Speaker");
             }
         }
 
@@ -292,6 +293,7 @@ namespace ImportSound.VoicePatcherSpace
                         {
                             AudioLib.greenLog("init ModeString");
                             List<string> newModes = newGameAudioEventList.Select(data => AudioLib.normalizeImportName(data.Name)).ToList();
+                            AudioLib.printObj(newModes);
                             newModes.Insert(0, "None");
                             set_modeStrings(newModes);
                             reInitModeHashes();

@@ -155,7 +155,7 @@ namespace ImportSound.CustomSoundManagerSpace
             {
                 if (gameAudioClipsData != null && toDel.Any(del => AudioLib.normalizeImportName(del.Name) == gameAudioClipsData.Name))
                 {
-                    AudioLib.greenLog($"Removing {gameAudioClipsData.Name} from newClipsData");
+                    AudioLib.greenLog($"Removing {gameAudioClipsData.Name} from _clipsDataSoundAlertLookup of Audiomanager");
                     toRemove.Add(gameAudioClipsData);
                 }
             }
@@ -176,7 +176,7 @@ namespace ImportSound.CustomSoundManagerSpace
                     .FirstOrDefault(import => AudioLib.normalizeImportName(import.Name) == current.Name);
                 if (clipReplacing != null)
                 {
-                    AudioLib.greenLog($"Replacing {current.Name} from newClipsData");
+                    AudioLib.greenLog($"Replacing {current.Name} from _clipsDataSoundAlertLookup of Audiomanager");
                     newClipsData[i] = clipReplacing;
                     importedGameAudioClipsData.Remove(clipReplacing);
                 }
@@ -209,8 +209,10 @@ namespace ImportSound.CustomSoundManagerSpace
             
             if (AudioLib.DEBUG_VERBOSE)
             {
+                AudioLib.greenLog($"adding in _clipsDataSoundAlertLookup of Audiomanager : ");
                 AudioLib.printGameAudioClipsDataList(importedGameAudioClipsData);
                 newClipsData = AudioManagerLib.GetClipsDataSoundAlertLookup().Values.ToList();
+                AudioLib.greenLog($"Final in _clipsDataSoundAlertLookup of Audiomanager (tablet and suit alarms) : ");
                 AudioLib.printGameAudioClipsDataList(newClipsData);
             }
         }
