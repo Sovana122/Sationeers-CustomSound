@@ -33,9 +33,9 @@ namespace ImportSound.Mod
         {
             try
             {
-                AudioLib.greenLog("IMPORTSOUND START");
-
                 AudioLib.DebugVerbose = Config.Bind("Debug", "Verbose", false, "Print some debug logs from the mod");
+
+                AudioLib.greenLog("IMPORTSOUND START");
 
                 var harmony = new Harmony("ImportSound");
                 harmony.PatchAll();
