@@ -37,6 +37,11 @@ namespace ImportSound.Mod
 
                 AudioLib.greenLog("IMPORTSOUND START");
 
+                //used for StartCoroutine
+                GameObject go = new GameObject("CustomSoundManager");
+                go.AddComponent<CustomSoundManager>();
+                GameObject.DontDestroyOnLoad(go);
+
                 var harmony = new Harmony("ImportSound");
                 harmony.PatchAll();
 
