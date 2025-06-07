@@ -8,6 +8,7 @@ using System.Collections;
 using System.Threading.Tasks;
 using System.Reflection;
 using System.Reflection.Emit;
+using System.Text.RegularExpressions;
 using Assets.Scripts.Objects;
 using Assets.Scripts.Objects.Electrical;
 using Assets.Scripts.Sound;
@@ -306,7 +307,7 @@ namespace ImportSound.AudioManagerLibSpace
             return (fileName + selectedFlag);
         }
 
-        public static string GetClipName(string absPath)
+        public static string GetClipName(string absPath, ref int currentAlarmIndex)
         {
             string languageDirName = null;
             string fileName = null;
@@ -337,6 +338,22 @@ namespace ImportSound.AudioManagerLibSpace
             else
             {
                 fileName = GetFileNameWithFlag(absPath, subFolder);
+ 
+                var matchRelativIndex = Regex.Match(fileName, @"^(\d+)___");
+                // Not delete flag
+                if (!AudioManagerLib.EndsWithFlag(fileName, AudioLib.FlagNames[FlagEnum.DELETE]))
+                {
+                    if (matchRelativIndex.Success)
+                        fileName = currentAlarmIndex.ToString("D4") + "___" + fileName.Substring(matchRelativIndex.Length);
+                    else
+                        fileName = currentAlarmIndex.ToString("D4") + "___" + fileName;
+                    currentAlarmIndex += 1000;
+                }
+                else //Delete index in sound for delete
+                {
+                    if (matchRelativIndex.Success)
+                        fileName = fileName.Substring(matchRelativIndex.Length);
+                }
             }
             string normalized = fileName.Replace(Path.DirectorySeparatorChar, '_').Replace(Path.AltDirectorySeparatorChar, '_');
             if (languageDirName != null)
