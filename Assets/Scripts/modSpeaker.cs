@@ -10,6 +10,8 @@ using System.Reflection;
 using System.Reflection.Emit;
 using Assets.Scripts.Objects;
 using Assets.Scripts.Objects.Electrical;
+using Assets.Scripts.Objects.Items;
+using Assets.Scripts.Objects.Clothing;
 using Assets.Scripts.Sound;
 using Assets.Scripts.Serialization;
 using Assets.Scripts.UI;
@@ -211,7 +213,7 @@ namespace ImportSound.VoicePatcherSpace
         #endregion
 
         [HarmonyPatch(typeof(Speaker), "GetContextualName")]
-        public class ThingGetContextualNamePatchPrefix
+        public class SpeakerGetContextualNamePatchPrefix
         {
             static bool Prefix(Speaker __instance, Interactable interactable, ref string __result)
             {
