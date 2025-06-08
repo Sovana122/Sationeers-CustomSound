@@ -9,6 +9,10 @@ using System.IO;
 using System.Reflection;
 using Assets.Scripts.Objects;
 using Assets.Scripts.Objects.Electrical;
+using Assets.Scripts.Objects.Motherboards;
+using Assets.Scripts.Objects.Pipes;
+using Assets.Scripts.Objects.Items;
+using Assets.Scripts.Objects.Clothing;
 using Assets.Scripts.Sound;
 using Assets.Scripts.Serialization;
 using Assets.Scripts.UI;
@@ -65,6 +69,8 @@ namespace ImportSound.AudioLibSpace
             { FlagEnum.LOOP_TRUE, "___T" },
             { FlagEnum.DELETE, "___D" }
         };
+
+        public static Dictionary<long, int> ThingIDSoundAlertDict = new();
 
         #region HELPER
 
@@ -224,6 +230,22 @@ namespace ImportSound.AudioLibSpace
 
         #endregion
 
+        #region GET_BASES
+
+        public static void execBaseSpeakerSetLogicValue(Speaker instance, LogicType logicType, double value)
+        {
+            var baseMethod = typeof(Device).GetMethod("SetLogicValue", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            baseMethod.Invoke(instance, new object[] { logicType, value });
+        }
+
+        public static void execBaseDynamicThingSetLogicValue(object instance, LogicType logicType, double value)
+        {
+            var baseMethod = typeof(DynamicThing).GetMethod("SetLogicValue", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            baseMethod.Invoke(instance, new object[] { logicType, value });
+        }
+
+        #endregion
+
         #region CORE
 
         public static string normalizeImportName(string input)
@@ -249,6 +271,38 @@ namespace ImportSound.AudioLibSpace
             return list
                 .Where(data => !data.Name.EndsWith(flag, StringComparison.OrdinalIgnoreCase))
                 .ToList();
+        }
+
+        public static PropertyInfo getSoundAlertField(object instance)
+        {
+            if (instance == null) return null;
+            PropertyInfo soundAlertFieldInfo = instance.GetType().GetProperty("SoundAlert", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            if (soundAlertFieldInfo == null || !soundAlertFieldInfo.CanRead)
+            {
+                AudioLib.errorLog("Property 'SoundAlert' not found or not readable in ISoundAlert");
+                return null;
+            }
+            return soundAlertFieldInfo;
+        }
+
+        public static byte getSoundAlert(object instance)
+        {
+            PropertyInfo soundAlertPropInfo = getSoundAlertField(instance);
+            if (soundAlertPropInfo == null)
+            {
+                return 1;
+            }
+            return (byte)soundAlertPropInfo.GetValue(instance);
+        }
+
+        public static void setSoundAlert(object instance, byte soundAlert)
+        {
+            PropertyInfo soundAlertPropInfo = getSoundAlertField(instance);
+            if (soundAlertPropInfo == null)
+            {
+                return;
+            }
+            soundAlertPropInfo.SetValue(instance, soundAlert);
         }
 
         #endregion
