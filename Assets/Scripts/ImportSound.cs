@@ -40,6 +40,18 @@ namespace ImportSound.Mod
             try
             {
                 AudioLib.DebugVerbose = Config.Bind("Debug", "Verbose", false, "Print some debug logs from the mod");
+                foreach (SoundAlert alert in Enum.GetValues(typeof(SoundAlert)))
+                {
+                    if (alert == SoundAlert.None)
+                        continue;
+                    var entry = Config.Bind(
+                        "Delete (not the real order, SLP reorder them)",
+                        alert.ToString(),
+                        false,
+                        "Delete the SoundAlert " + alert.ToString() + ". (You may adding it yourself then for reordering)."
+                    );
+                    AudioLib.DeleteConfigs[alert.ToString()] = entry;
+                }
 
                 AudioLib.greenLog("IMPORTSOUND START");
 

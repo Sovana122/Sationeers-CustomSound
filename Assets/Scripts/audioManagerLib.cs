@@ -344,9 +344,9 @@ namespace ImportSound.AudioManagerLibSpace
                 if (!AudioManagerLib.EndsWithFlag(fileName, AudioLib.FlagNames[FlagEnum.DELETE]))
                 {
                     if (matchRelativIndex.Success)
-                        fileName = currentAlarmIndex.ToString("D4") + "___" + fileName.Substring(matchRelativIndex.Length);
+                        fileName = currentAlarmIndex.ToString("D" + AudioLib.DIGIT_INDEX) + "___" + fileName.Substring(matchRelativIndex.Length);
                     else
-                        fileName = currentAlarmIndex.ToString("D4") + "___" + fileName;
+                        fileName = currentAlarmIndex.ToString("D" + AudioLib.DIGIT_INDEX) + "___" + fileName;
                     currentAlarmIndex += 1000;
                 }
                 else //Delete index in sound for delete

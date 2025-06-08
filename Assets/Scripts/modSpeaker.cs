@@ -157,7 +157,12 @@ namespace ImportSound.VoicePatcherSpace
             List<GameAudioEvent> toRemove = new List<GameAudioEvent>();
             foreach (GameAudioEvent gameAudioEvent in newGameAudioEventList)
             {
-                if (gameAudioEvent != null && toDel.Any(del => AudioLib.normalizeImportName(del.Name) == gameAudioEvent.Name))
+                if (gameAudioEvent != null
+                    && (
+                        AudioLib.IsDeleteEnabled(gameAudioEvent.Name)
+                        || toDel.Any(del => AudioLib.normalizeImportName(del.Name) == gameAudioEvent.Name)
+                    )
+                )
                 {
                     AudioLib.greenLog($"Removing {gameAudioEvent.Name} from AssociatedAudioEvents from Speaker");
                     toRemove.Add(gameAudioEvent);

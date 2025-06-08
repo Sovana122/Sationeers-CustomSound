@@ -72,6 +72,161 @@ namespace ImportSound.CustomSoundManagerSpace
             return clipList;
         }
 
+        public static void PadIndexNames(string dirPath)
+        {
+            var entries = Directory.GetFileSystemEntries(dirPath);
+
+            foreach (var path in entries)
+            {
+                string name = Path.GetFileName(path);
+                string parent = Path.GetDirectoryName(path);
+
+                //Search for indexes but too short
+                var match = Regex.Match(name, @"^(\d{1," + (AudioLib.DIGIT_INDEX - 1) + @"})___");
+                if (match.Success)
+                {
+                    string indexStr = match.Groups[1].Value;
+                    if (indexStr.Length < AudioLib.DIGIT_INDEX)
+                    {
+                        string padded = indexStr.PadLeft(AudioLib.DIGIT_INDEX, '0');
+                        string newName = padded + name.Substring(indexStr.Length);
+                        string newPath = Path.Combine(parent, newName);
+
+                        // No name conflicts
+                        int suffix = 1;
+                        while ((File.Exists(newPath) || Directory.Exists(newPath)) && !string.Equals(path, newPath, StringComparison.OrdinalIgnoreCase))
+                        {
+                            string baseName = Path.GetFileNameWithoutExtension(newName);
+                            string ext = Path.GetExtension(newName);
+
+                            // Find the last ___ after the index (after AudioLib.DIGIT_INDEX digits + 3 underscores)
+                            int lastFlag = baseName.LastIndexOf("___", StringComparison.Ordinal);
+                            if (lastFlag > AudioLib.DIGIT_INDEX)
+                            {
+                                // Insert the suffix before this last flag
+                                string beforeFlag = baseName.Substring(0, lastFlag);
+                                string afterFlag = baseName.Substring(lastFlag);
+                                baseName = $"{beforeFlag}_{suffix}{afterFlag}";
+                            }
+                            else
+                            {
+                                baseName = $"{baseName}_{suffix}";
+                            }
+
+                            string candidate = baseName + ext;
+                            newPath = Path.Combine(parent, candidate);
+                            suffix++;
+                        }
+
+                        try
+                        {
+                            if (Directory.Exists(path))
+                                Directory.Move(path, newPath);
+                            else
+                                File.Move(path, newPath);
+                            AudioLib.greenLog($"Pad index: {name} -> {Path.GetFileName(newPath)}");
+                        }
+                        catch (Exception ex)
+                        {
+                            AudioLib.redWarnLog($"Error renaming {name}: {ex.Message}");
+                        }
+                    }
+                }
+                if (Directory.Exists(path))
+                    PadIndexNames(path);
+            }
+        }
+
+        public static void ProcessDirectory(string dirPath)
+        {
+            var directories = Directory.GetDirectories(dirPath).OrderBy(d => Path.GetFileName(d), StringComparer.OrdinalIgnoreCase).ToList();
+            var files = Directory.GetFiles(dirPath)
+                .Where(f =>
+                {
+                    string ext = Path.GetExtension(f).ToLowerInvariant();
+                    return ext == ".ogg" || ext == ".mp3" || ext == ".wav";
+                })
+                .OrderBy(f => Path.GetFileName(f), StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var all = new List<string>();
+            all.AddRange(directories);
+            all.AddRange(files);
+
+            int index = 1000;
+            foreach (var path in all)
+            {
+                string name = Path.GetFileName(path);
+                string parent = Path.GetDirectoryName(path);
+                string expectedIndex = index.ToString("D" + AudioLib.DIGIT_INDEX);
+                string newName = name;
+
+                // Detect if the name starts with one or more digits followed by three underscores
+                var match = Regex.Match(name, @"^(\d+)___");
+                if (match.Success)
+                {
+                    // Replace the found index by the correct one (always 8 digits)
+                    newName = expectedIndex + "___" + name.Substring(match.Length);
+                }
+                else
+                {
+                    // No index, add the correct one at the beginning
+                    newName = expectedIndex + "___" + name;
+                }
+
+                // Handle name conflict: insert suffix before the last ___ (not the index one), otherwise before the extension
+                string newPath = Path.Combine(parent, newName);
+                int suffix = 1;
+                while ((File.Exists(newPath) || Directory.Exists(newPath)) && !string.Equals(path, newPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    string baseName = Path.GetFileNameWithoutExtension(newName);
+                    string ext = Path.GetExtension(newName);
+
+                    // Find the last ___ after the index (after AudioLib.DIGIT_INDEX digits + 3 underscores)
+                    int lastFlag = baseName.LastIndexOf("___", StringComparison.Ordinal);
+                    if (lastFlag > AudioLib.DIGIT_INDEX)
+                    {
+                        // Insert the suffix before this last flag
+                        string beforeFlag = baseName.Substring(0, lastFlag);
+                        string afterFlag = baseName.Substring(lastFlag);
+                        baseName = $"{beforeFlag}_{suffix}{afterFlag}";
+                    }
+                    else
+                    {
+                        baseName = $"{baseName}_{suffix}";
+                    }
+
+                    string candidate = baseName + ext;
+                    newPath = Path.Combine(parent, candidate);
+                    suffix++;
+                }
+
+                // If the name must be changed, rename
+                if (newName != name || !string.Equals(path, newPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    try
+                    {
+                        if (Directory.Exists(path))
+                            Directory.Move(path, newPath);
+                        else
+                            File.Move(path, newPath);
+                        AudioLib.greenLog($"Renamed: {name} -> {Path.GetFileName(newPath)}");
+                    }
+                    catch (Exception ex)
+                    {
+                        AudioLib.redWarnLog($"Error renaming {name}: {ex.Message}");
+                    }
+                }
+
+                // If it's a directory, process recursively
+                string finalPath = Directory.Exists(newPath) ? newPath : path;
+                if (Directory.Exists(finalPath))
+                    ProcessDirectory(finalPath);
+
+                index += 1000;
+            }
+        }
+
         public static void ListAndRenameAlarmFolder()
         {
             AudioLib.greenLog("START ListAndRenameAlarmFolder");
@@ -82,97 +237,6 @@ namespace ImportSound.CustomSoundManagerSpace
                 AudioLib.redWarnLog($"Folder not found: {alarmFolder}");
                 return;
             }
-
-            void ProcessDirectory(string dirPath)
-            {
-                var directories = Directory.GetDirectories(dirPath).OrderBy(d => Path.GetFileName(d), StringComparer.OrdinalIgnoreCase).ToList();
-                var files = Directory.GetFiles(dirPath)
-                    .Where(f =>
-                    {
-                        string ext = Path.GetExtension(f).ToLowerInvariant();
-                        return ext == ".ogg" || ext == ".mp3" || ext == ".wav";
-                    })
-                    .OrderBy(f => Path.GetFileName(f), StringComparer.OrdinalIgnoreCase)
-                    .ToList();
-
-                var all = new List<string>();
-                all.AddRange(directories);
-                all.AddRange(files);
-
-                int index = 1000;
-                foreach (var path in all)
-                {
-                    string name = Path.GetFileName(path);
-                    string parent = Path.GetDirectoryName(path);
-                    string expectedIndex = index.ToString("D4");
-                    string newName = name;
-
-                    // Detect if the name starts with one or more digits followed by three underscores
-                    var match = Regex.Match(name, @"^(\d+)___");
-                    if (match.Success)
-                    {
-                        // Replace the found index by the correct one (always 4 digits)
-                        newName = expectedIndex + "___" + name.Substring(match.Length);
-                    }
-                    else
-                    {
-                        // No index, add the correct one at the beginning
-                        newName = expectedIndex + "___" + name;
-                    }
-
-                    // Handle name conflict: insert suffix before the last ___ (not the index one), otherwise before the extension
-                    string newPath = Path.Combine(parent, newName);
-                    int suffix = 1;
-                    while ((File.Exists(newPath) || Directory.Exists(newPath)) && !string.Equals(path, newPath, StringComparison.OrdinalIgnoreCase))
-                    {
-                        string baseName = Path.GetFileNameWithoutExtension(newName);
-                        string ext = Path.GetExtension(newName);
-
-                        // Find the last ___ after the index (after 4 digits + 3 underscores)
-                        int lastFlag = baseName.LastIndexOf("___", StringComparison.Ordinal);
-                        if (lastFlag > 4)
-                        {
-                            // Insert the suffix before this last flag
-                            string beforeFlag = baseName.Substring(0, lastFlag);
-                            string afterFlag = baseName.Substring(lastFlag);
-                            baseName = $"{beforeFlag}_{suffix}{afterFlag}";
-                        }
-                        else
-                        {
-                            baseName = $"{baseName}_{suffix}";
-                        }
-
-                        string candidate = baseName + ext;
-                        newPath = Path.Combine(parent, candidate);
-                        suffix++;
-                    }
-
-                    // If the name must be changed, rename
-                    if (newName != name || !string.Equals(path, newPath, StringComparison.OrdinalIgnoreCase))
-                    {
-                        try
-                        {
-                            if (Directory.Exists(path))
-                                Directory.Move(path, newPath);
-                            else
-                                File.Move(path, newPath);
-                            AudioLib.greenLog($"Renamed: {name} -> {Path.GetFileName(newPath)}");
-                        }
-                        catch (Exception ex)
-                        {
-                            AudioLib.redWarnLog($"Error renaming {name}: {ex.Message}");
-                        }
-                    }
-
-                    // If it's a directory, process recursively
-                    string finalPath = Directory.Exists(newPath) ? newPath : path;
-                    if (Directory.Exists(finalPath))
-                        ProcessDirectory(finalPath);
-
-                    index += 1000;
-                }
-            }
-
             ProcessDirectory(alarmFolder);
             AudioLib.greenLog("END ListAndRenameAlarmFolder");
         }
@@ -264,11 +328,16 @@ namespace ImportSound.CustomSoundManagerSpace
         
         public static void removeAudioClipsData(List<GameAudioClipsData> newClipsData, List<GameAudioClipsData> importedGameAudioClipsData)
         {
-            List<GameAudioClipsData> toDel = AudioLib.getFlag(importedGameAudioClipsData, "___D");
+            List<GameAudioClipsData> toDel = AudioLib.getFlag(importedGameAudioClipsData, AudioLib.FlagNames[FlagEnum.DELETE]);
             List<GameAudioClipsData> toRemove = new List<GameAudioClipsData>();
             foreach (GameAudioClipsData gameAudioClipsData in newClipsData)
             {
-                if (gameAudioClipsData != null && toDel.Any(del => AudioLib.normalizeImportName(del.Name) == gameAudioClipsData.Name))
+                if (gameAudioClipsData != null 
+                    && (
+                        AudioLib.IsDeleteEnabled(gameAudioClipsData.Name)
+                        || toDel.Any(del => AudioLib.normalizeImportName(del.Name) == gameAudioClipsData.Name)
+                    )
+                )
                 {
                     AudioLib.greenLog($"Removing {gameAudioClipsData.Name} from _clipsDataSoundAlertLookup of Audiomanager");
                     toRemove.Add(gameAudioClipsData);

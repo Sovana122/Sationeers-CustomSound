@@ -47,8 +47,12 @@ namespace ImportSound.AudioLibSpace
 
     public static class AudioLib
     {
+        public const byte DIGIT_INDEX = 8;
         public static ConfigEntry<bool> DebugVerbose;
         public static bool DEBUG_VERBOSE => DebugVerbose?.Value == true;
+        public static Dictionary<string, ConfigEntry<bool>> DeleteConfigs = new();
+        public static bool IsDeleteEnabled(string alert) => DeleteConfigs.TryGetValue(alert, out var entry) && entry.Value;
+
 
         public static bool speakerStaticInitialized = false;
 
