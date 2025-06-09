@@ -347,7 +347,7 @@ namespace ImportSound.AudioManagerLibSpace
                         fileName = currentAlarmIndex.ToString("D" + AudioLib.DIGIT_INDEX) + "___" + fileName.Substring(matchRelativIndex.Length);
                     else
                         fileName = currentAlarmIndex.ToString("D" + AudioLib.DIGIT_INDEX) + "___" + fileName;
-                    currentAlarmIndex += 1000;
+                    currentAlarmIndex += (int)Math.Pow(10, AudioLib.DIGIT_INDEX_RESERVED);
                 }
                 else //Delete index in sound for delete
                 {

@@ -48,6 +48,7 @@ namespace ImportSound.AudioLibSpace
     public static class AudioLib
     {
         public const byte DIGIT_INDEX = 8;
+        public const byte DIGIT_INDEX_RESERVED = 3;//For player so they can push sounds between them between sessions
         public static ConfigEntry<bool> DebugVerbose;
         public static bool DEBUG_VERBOSE => DebugVerbose?.Value == true;
         public static Dictionary<string, ConfigEntry<bool>> DeleteConfigs = new();
@@ -96,6 +97,19 @@ namespace ImportSound.AudioLibSpace
         public static void play(AudioClip clip)
         {
             AudioSource.PlayClipAtPoint(clip, Vector3.zero);
+        }
+
+        public static void saveSoundAlert(long refId, double value)
+        {
+            int cappedInt = DoubleToIntCapped(value);
+            if (ThingIDSoundAlertDict.ContainsKey(refId))
+            {
+                ThingIDSoundAlertDict[refId] = cappedInt;
+            }
+            else
+            {
+                ThingIDSoundAlertDict.Add(refId, cappedInt);
+            }
         }
 
         #endregion
@@ -277,6 +291,24 @@ namespace ImportSound.AudioLibSpace
                 .ToList();
         }
 
+        public static int DoubleToIntCapped(double value)
+        {
+            int length = DIGIT_INDEX - DIGIT_INDEX_RESERVED; //usable digit for final indexes
+            int max = length <= 0 ? 0 : (length > 9 ? int.MaxValue : (int)Math.Pow(10, length) - 1); //index max
+            if (value < 0)
+                return (int)0;
+            if (value > max)
+                return (int)max;
+            return (int)value;
+        }
+
+        public static double DoubleToByteCapped(double value)
+        {
+            int cappedInt = DoubleToIntCapped(value);
+            double valByte = cappedInt > byte.MaxValue ? (double)1 : (cappedInt < 0 ? (double)0 : (double)cappedInt); //still sound 1 as placeholder
+            return valByte;
+        }
+
         public static PropertyInfo getSoundAlertField(object instance)
         {
             if (instance == null) return null;
@@ -307,6 +339,22 @@ namespace ImportSound.AudioLibSpace
                 return;
             }
             soundAlertPropInfo.SetValue(instance, soundAlert);
+        }
+
+        public static void setLogicValueSoundAlert(object __instance, double value)
+        {
+            if (value > byte.MaxValue)
+            {
+                value = 1; //still sound one as placeholder
+            }
+            setSoundAlert(__instance, (byte)Mathf.Clamp((int)value, 0, Speaker.modeStrings.Length - 1));
+        }
+
+        public static void setLogicValueSoundAlertINT(object __instance, double value)
+        {
+            double valByte = DoubleToByteCapped(value);
+            setSoundAlert(__instance, (byte)Mathf.Clamp((int)valByte, 0, Speaker.modeStrings.Length - 1));
+            saveSoundAlert((__instance as Thing).ReferenceId, value);
         }
 
         #endregion

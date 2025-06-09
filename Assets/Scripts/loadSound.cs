@@ -55,7 +55,7 @@ namespace ImportSound.CustomSoundManagerSpace
         {
             List<AudioClip> clipList = new List<AudioClip>();
             string logLoaded = "";
-            int alarmIndex = 1000;
+            int alarmIndex = (int)Math.Pow(10, AudioLib.DIGIT_INDEX_RESERVED);
 
             for (int i = 0; i < reqData.Requests.Count; i++)
             {
@@ -288,6 +288,14 @@ namespace ImportSound.CustomSoundManagerSpace
                     filePathAbsListSubFolder = filePathAbsListSubFolder
                         .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
                         .ToList();
+                    int length = AudioLib.DIGIT_INDEX - AudioLib.DIGIT_INDEX_RESERVED; //usable digit for final indexes
+                    int max = length <= 0 ? 0 : (length > 9 ? int.MaxValue : (int)Math.Pow(10, length) - 1); //index max
+                    if (filePathAbsListSubFolder.Count > max)
+                    {
+                        AudioLib.errorLog($"{max - filePathAbsListSubFolder.Count} alarms can’t be loaded, overflowing index (max : {max}), YOU'RE VERY UNWISE SIR THAT’s BIG NUMBERS !!!");
+                        filePathAbsListSubFolder = filePathAbsListSubFolder.Take(max).ToList();
+                    }
+
                 }
 
                 logFound += "Files found (" + filePathAbsListSubFolder.Count + ") in " + soundSubFolderName + " : \n"

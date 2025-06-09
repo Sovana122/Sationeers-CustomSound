@@ -79,19 +79,20 @@ namespace ImportSound.Mod
         {
             try
             {
-                if (__instance.GetType() == typeof(Device)) //Patch only childs for not doing infinite loop
+                if (__instance.GetType() == typeof(Device) || logicType != LogicType.SoundAlert) //Patch only childs for not doing infinite loop (not sure that works but disabled base call then)
                     return true;
-                if (__instance is Speaker && logicType == LogicType.SoundAlert)
+                if (__instance is Speaker)
                 {
                     AudioLib.cyanLog("using SetLogicValue Speaker");
-                    //AudioLib.execBaseSpeakerSetLogicValue((__instance as Speaker), logicType, value);
+                    /* comm for prevent infinite loop + we know it's a soundalert anyway so ne need to test the rest of the logicTypes
+                    AudioLib.execBaseSpeakerSetLogicValue((__instance as Speaker), logicType, value); */
                     OnServer.Interact(__instance.InteractMode, Mathf.Clamp((int)value, 0, Speaker.modeStrings.Length - 1), false);
                     return false;
                 }
-                else if (__instance is PassiveSpeaker && logicType == LogicType.SoundAlert)
+                else if (__instance is PassiveSpeaker)
                 {
                     AudioLib.cyanLog("using SetLogicValue PassiveSpeaker");
-                    AudioLib.setSoundAlert(__instance, (byte)Mathf.Clamp((int)value, 0, Speaker.modeStrings.Length - 1));
+                    AudioLib.setLogicValueSoundAlertINT(__instance, value);
                     return false;
                 }
                 return true;
@@ -111,13 +112,15 @@ namespace ImportSound.Mod
         {
             try
             {
-                if (__instance.GetType() == typeof(DynamicThing)) //Patch only childs for not doing infinite loop
+                //Patch only childs for not doing infinite loop (not sure that works but disabled base call then)
+                if (__instance.GetType() == typeof(DynamicThing) || logicType != LogicType.SoundAlert)
                     return true;
-                if (__instance is ISoundAlert && __instance is DynamicThing && logicType == LogicType.SoundAlert)
+                else if (__instance is ISoundAlert)
                 {
                     AudioLib.cyanLog("using SetLogicValue DynamicThing");
-                    //AudioLib.execBaseDynamicThingSetLogicValue((__instance as DynamicThing), logicType, value);
-                    AudioLib.setSoundAlert(__instance, (byte)Mathf.Clamp((int)value, 0, Speaker.modeStrings.Length - 1));
+                    /* comm for prevent infinite loop + we know it's a soundalert anyway so ne need to test the rest of the logicTypes
+                    AudioLib.execBaseDynamicThingSetLogicValue((__instance as DynamicThing), logicType, value); */
+                    AudioLib.setLogicValueSoundAlertINT(__instance, value);
                     return false;
                 }
                 return true;
@@ -355,4 +358,4 @@ namespace ImportSound.Mod
             }
         }
     }*/
-}
+                }
