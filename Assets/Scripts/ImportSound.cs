@@ -60,6 +60,8 @@ namespace ImportSound.Mod
                 go.AddComponent<CustomSoundManager>();
                 GameObject.DontDestroyOnLoad(go);
 
+                SpeakerPatcher.set_modeStrings(new List<string>() { "None"});
+
                 var harmony = new Harmony("ImportSound");
                 harmony.PatchAll();
 
@@ -89,7 +91,7 @@ namespace ImportSound.Mod
                     OnServer.Interact(__instance.InteractMode, Mathf.Clamp((int)value, 0, Speaker.modeStrings.Length - 1), false);
                     return false;
                 }
-                else if (__instance is PassiveSpeaker)
+                else if (__instance is ISoundAlert)
                 {
                     AudioLib.cyanLog("using SetLogicValue PassiveSpeaker");
                     AudioLib.setLogicValueSoundAlertINT(__instance, value);
@@ -156,16 +158,22 @@ namespace ImportSound.Mod
                     }
                     else if (__instance is ISoundAlert)
                     {
-                        modeIndex = AudioLib.getSoundAlert(__instance);
+                        modeIndex = AudioLib.loadSoundAlertDict(__instance);
+                        AudioLib.cyanLog("mode " + modeIndex.ToString());
+                        AudioLib.cyanLog("count modes " + Speaker.modeStrings.Length.ToString());
+                        AudioLib.printObj(Speaker.modeStrings);
                     }
-                    if (modeIndex != 0 && !savedData.States.Any(s => s.StateName == Speaker.modeStrings[modeIndex]))
+                    if (modeIndex > 0 && modeIndex < Speaker.modeStrings.Length)
                     {
-                        AudioLib.cyanLog("Saving " + Speaker.modeStrings[modeIndex] + " as mode " + modeIndex.ToString());
-                        savedData.States.Add(new InteractableState
+                        if (!savedData.States.Any(s => s.StateName == Speaker.modeStrings[modeIndex]))
                         {
-                            StateName = Speaker.modeStrings[modeIndex],
-                            State = 0
-                        });
+                            AudioLib.cyanLog("Saving " + Speaker.modeStrings[modeIndex] + " as mode " + modeIndex.ToString());
+                            savedData.States.Add(new InteractableState
+                            {
+                                StateName = Speaker.modeStrings[modeIndex],
+                                State = 0
+                            });
+                        }
                     }
                     //AudioLib.greenLog("END INITSAVE");
                 }
@@ -231,7 +239,7 @@ namespace ImportSound.Mod
                     }
                     else if (__instance is ISoundAlert)
                     {
-                        AudioLib.setSoundAlert(__instance, (byte)val);
+                        AudioLib.setLogicValueSoundAlertINT(__instance, val);
                     }
                     foreach (InteractableState state in toRemove)
                     {
@@ -244,6 +252,354 @@ namespace ImportSound.Mod
             catch (Exception ex)
             {
                 AudioLib.errorLog($"Error DeserializeSave : {ex.Message}\n{ex.StackTrace}");
+                return true;
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(Thing), "DeserializeOnJoin")]
+    public class ThingDeserializeOnJoinPatchPostfix
+    {
+        static void Postfix(Thing __instance, RocketBinaryReader reader)
+        {
+            try
+            {
+                //Patch only childs for not doing infinite loop (not sure that works but disabled base call then)
+                if (__instance.GetType() == typeof(Thing))
+                    return;
+                else if (__instance is ISoundAlert)
+                {
+                    AudioLib.cyanLog("using DeserializeOnJoin Thing");
+                    AudioLib.readSaveIntBinary(__instance, reader);
+                }
+            }
+            catch (Exception ex)
+            {
+                AudioLib.errorLog($"Error postfix Thing.DeserializeOnJoin : {ex.Message}\n{ex.StackTrace}");
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(Thing), "ProcessUpdate")]
+    public class ThingProcessUpdatePatchPostfix
+    {
+        static void Postfix(Thing __instance, RocketBinaryReader reader, ushort networkUpdateType)
+        {
+            try
+            {
+                //Patch only childs for not doing infinite loop (not sure that works but disabled base call then)
+                if (__instance.GetType() == typeof(Thing) || !Thing.IsNetworkUpdateRequired(16384U, networkUpdateType)) //soundAlert flag
+                    return;
+                else if (__instance is ISoundAlert)
+                {
+                    AudioLib.cyanLog("using ProcessUpdate Device");
+                    AudioLib.readSaveIntBinary(__instance, reader);
+                }
+            }
+            catch (Exception ex)
+            {
+                AudioLib.errorLog($"Error postfix Thing.ProcessUpdate : {ex.Message}\n{ex.StackTrace}");
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(Thing), "BuildUpdate")]
+    public class ThingBuildUpdatePatchPostfix
+    {
+        static void Postfix(Thing __instance, RocketBinaryWriter writer, ushort networkUpdateType)
+        {
+            try
+            {
+                //Patch only childs for not doing infinite loop (not sure that works but disabled base call then)
+                if (__instance.GetType() == typeof(Thing) || !Thing.IsNetworkUpdateRequired(16384U, networkUpdateType)) //soundAlert flag
+                    return;
+                else if (__instance is ISoundAlert)
+                {
+                    AudioLib.cyanLog("using BuildUpdate Thing");
+                    writer.WriteInt32(AudioLib.getSoundAlert(__instance));
+                }
+            }
+            catch (Exception ex)
+            {
+                AudioLib.errorLog($"Error postfix Thing.BuildUpdate : {ex.Message}\n{ex.StackTrace}");
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(Thing), "SerializeOnJoin")]
+    public class ThingSerializeOnJoinPatchPostfix
+    {
+        static void Postfix(Thing __instance, RocketBinaryWriter writer)
+        {
+            try
+            {
+                //Patch only childs for not doing infinite loop (not sure that works but disabled base call then)
+                if (__instance.GetType() == typeof(Thing))
+                    return;
+                else if (__instance is ISoundAlert)
+                {
+                    AudioLib.cyanLog("using SerializeOnJoin Thing");
+                    writer.WriteInt32(AudioLib.getSoundAlert(__instance));
+                }
+            }
+            catch (Exception ex)
+            {
+                AudioLib.errorLog($"Error postfix Thing.SerializeOnJoin : {ex.Message}\n{ex.StackTrace}");
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(Device), "GetLogicValue", new Type[] { typeof(LogicType) })]
+    public class DeviceGetLogicValuePatchPrefix
+    {
+        static bool Prefix(ref double __result, Device __instance, LogicType logicType)
+        {
+            try
+            {
+                if (__instance.GetType() == typeof(Device) || logicType != LogicType.SoundAlert) //Patch only childs for not doing infinite loop (not sure that works but disabled base call then)
+                    return true;
+                else if (__instance is ISoundAlert)
+                {
+                    AudioLib.cyanLog("using GetLogicValue ISoundAlert");
+                    __result = (double)AudioLib.loadSoundAlertDict(__instance);
+                    return false;
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                AudioLib.errorLog($"Error prefix Device.GetLogicValue : {ex.Message}\n{ex.StackTrace}");
+                return true;
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(DynamicThing), "GetLogicValue", new Type[] { typeof(LogicType) })]
+    public class DynamicThingGetLogicValuePatchPrefix
+    {
+        static bool Prefix(ref double __result, DynamicThing __instance, LogicType logicType)
+        {
+            try
+            {
+                //Patch only childs for not doing infinite loop (not sure that works but disabled base call then)
+                if (__instance.GetType() == typeof(DynamicThing) || logicType != LogicType.SoundAlert)
+                    return true;
+                else if (__instance is ISoundAlert)
+                {
+                    AudioLib.cyanLog("using GetLogicValue DynamicThing");
+                    /* comm for prevent infinite loop + we know it's a soundalert anyway so ne need to test the rest of the logicTypes
+                    AudioLib.execBaseDynamicThingSetLogicValue((__instance as DynamicThing), logicType, value); */
+
+                    __result = (double)AudioLib.loadSoundAlertDict(__instance);
+                    return false;
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                AudioLib.errorLog($"Error prefix DynamicThing.GetLogicValue : {ex.Message}\n{ex.StackTrace}");
+                return true;
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(AdvancedSuit), "set_SoundVolume")]
+    public class AdvancedSuitSoundVolumeSetPrefix
+    {
+        static bool Prefix(AdvancedSuit __instance, byte value)
+        {
+            try
+            {
+                if (__instance is not ISoundAlert)
+                    return true;
+                AudioLib.setSoundVolume(__instance, value);
+                if (NetworkManager.IsServer)
+                {
+                    __instance.NetworkUpdateFlags |= 8192; //volume flag
+                }
+                PooledAudioSource pooled = AudioLib.get_playingAudio(__instance);
+                if (pooled != null)
+                {
+                    pooled.GameAudioSource.SetVolumeMultiplier(
+                        AudioManager.Find((SoundAlert)AudioLib.loadSoundAlertDict(__instance)).NameHash,
+                        (float)__instance.SoundVolume / 100f
+                    );
+                }
+                return false;
+            }
+            catch (Exception ex)
+            {
+                AudioLib.errorLog($"Error prefix AdvancedSuit.set_SoundVolume : {ex.Message}\n{ex.StackTrace}");
+                return true;
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(SuitBase), "set_SoundVolume")]
+    public class SuitBaseSoundVolumeSetPrefix
+    {
+        static bool Prefix(SuitBase __instance, byte value)
+        {
+            try
+            {
+                if (__instance is not ISoundAlert)
+                    return true;
+                AudioLib.setSoundVolume(__instance, value);
+                if (NetworkManager.IsServer)
+                {
+                    __instance.NetworkUpdateFlags |= 8192; //volume flag
+                }
+                PooledAudioSource pooled = AudioLib.get_playingAudio(__instance);
+                if (pooled != null)
+                {
+                    pooled.GameAudioSource.SetVolumeMultiplier(
+                        AudioManager.Find((SoundAlert)AudioLib.loadSoundAlertDict(__instance)).NameHash,
+                        (float)__instance.SoundVolume / 100f
+                    );
+                }
+                return false;
+            }
+            catch (Exception ex)
+            {
+                AudioLib.errorLog($"Error prefix SuitBase.set_SoundVolume : {ex.Message}\n{ex.StackTrace}");
+                return true;
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(PassiveSpeaker), "set_SoundVolume")]
+    public class PassiveSpeakerSoundVolumeSetPrefix
+    {
+        static bool Prefix(PassiveSpeaker __instance, byte value)
+        {
+            try
+            {
+                if (__instance is not ISoundAlert)
+                    return true;
+                AudioLib.setSoundVolume(__instance, value);
+                if (NetworkManager.IsServer)
+                {
+                    __instance.NetworkUpdateFlags |= 8192; //volume flag
+                }
+                PooledAudioSource pooled = AudioLib.get_playingAudio(__instance);
+                if (pooled != null)
+                {
+                    pooled.GameAudioSource.SetVolumeMultiplier(
+                        AudioManager.Find((SoundAlert)AudioLib.loadSoundAlertDict(__instance)).NameHash,
+                        (float)__instance.SoundVolume / 100f
+                    );
+                }
+                return false;
+            }
+            catch (Exception ex)
+            {
+                AudioLib.errorLog($"Error prefix PassiveSpeaker.set_SoundVolume : {ex.Message}\n{ex.StackTrace}");
+                return true;
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(AdvancedTablet), "set_SoundVolume")]
+    public class AdvancedTabletSoundVolumeSetPrefix
+    {
+        static bool Prefix(AdvancedTablet __instance, byte value)
+        {
+            try
+            {
+                if (__instance is not ISoundAlert)
+                    return true;
+                AudioLib.setSoundVolume(__instance, value);
+                if (NetworkManager.IsServer)
+                {
+                    __instance.NetworkUpdateFlags |= 8192; //volume flag
+                }
+                PooledAudioSource pooled = AudioLib.get_playingAudio(__instance);
+                if (pooled != null)
+                {
+                    pooled.GameAudioSource.SetVolumeMultiplier(
+                        AudioManager.Find((SoundAlert)AudioLib.loadSoundAlertDict(__instance)).NameHash,
+                        (float)__instance.SoundVolume / 100f
+                    );
+                }
+                return false;
+            }
+            catch (Exception ex)
+            {
+                AudioLib.errorLog($"Error prefix AdvancedTablet.set_SoundVolume : {ex.Message}\n{ex.StackTrace}");
+                return true;
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(GasMask), "set_SoundVolume")]
+    public class GasMaskSoundVolumeSetPrefix
+    {
+        static bool Prefix(GasMask __instance, byte value)
+        {
+            try
+            {
+                if (__instance is not ISoundAlert)
+                    return true;
+                AudioLib.setSoundVolume(__instance, value);
+                if (NetworkManager.IsServer)
+                {
+                    __instance.NetworkUpdateFlags |= 8192; //volume flag
+                }
+                PooledAudioSource pooled = AudioLib.get_playingAudio(__instance);
+                if (pooled != null)
+                {
+                    pooled.GameAudioSource.SetVolumeMultiplier(
+                        AudioManager.Find((SoundAlert)AudioLib.loadSoundAlertDict(__instance)).NameHash,
+                        (float)__instance.SoundVolume / 100f
+                    );
+                }
+                return false;
+            }
+            catch (Exception ex)
+            {
+                AudioLib.errorLog($"Error prefix GasMask.set_SoundVolume : {ex.Message}\n{ex.StackTrace}");
+                return true;
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(Thing), "PlayPooledAudioSound", new Type[] { typeof(ISoundAlert), typeof(ChannelData) })]
+    public class ThingPlayPooledAudioSoundIsoundChannelPrefix
+    {
+        static bool Prefix(ref PooledAudioSource __result, ISoundAlert iSoundAlert, ChannelData channelData)
+        {
+            try
+            {
+                AudioManager instance = AudioManager.Instance;
+                IAudioParent getAsThing = iSoundAlert.GetAsThing;
+                GameAudioClipsData gameAudioClipsData = AudioManager.Find((SoundAlert)AudioLib.loadSoundAlertDict(iSoundAlert));
+                __result = instance.PlayAudioClipsData(getAsThing, (gameAudioClipsData != null) ? gameAudioClipsData.NameHash : 0, Vector3.zero, channelData, (float)iSoundAlert.SoundVolume / 50f, 1f);
+                return false;
+            }
+            catch (Exception ex)
+            {
+                AudioLib.errorLog($"Error prefix Thing.PlayPooledAudioSound (ISoundAlert, ChannelData) : {ex.Message}\n{ex.StackTrace}");
+                return true;
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(Thing), "PlayPooledAudioSound", new Type[] { typeof(ISoundAlert) })]
+    public class ThingPlayPooledAudioSoundIsoundPrefix
+    {
+        static bool Prefix(ref PooledAudioSource __result, ISoundAlert iSoundAlert)
+        {
+            try
+            {
+                AudioManager instance = AudioManager.Instance;
+                IAudioParent getAsThing = iSoundAlert.GetAsThing;
+                GameAudioClipsData gameAudioClipsData = AudioManager.Find((SoundAlert)AudioLib.loadSoundAlertDict(iSoundAlert));
+                __result = instance.PlayAudioClipsData(getAsThing, (gameAudioClipsData != null) ? gameAudioClipsData.NameHash : 0, Vector3.zero, null, (float)iSoundAlert.SoundVolume / 50f, 1f);
+                return false;
+            }
+            catch (Exception ex)
+            {
+                AudioLib.errorLog($"Error prefix Thing.PlayPooledAudioSound (ISoundAlert) : {ex.Message}\n{ex.StackTrace}");
                 return true;
             }
         }
@@ -309,53 +665,4 @@ namespace ImportSound.Mod
             }
         }
     }
-
-    /*
-    [HarmonyPatch(typeof(Thing), "SerializeOnJoin")]
-    public class ThingSerializeOnJoinPatchPostfix
-    {
-        static void Postfix(Thing __instance, RocketBinaryWriter writer)
-        {
-            try
-            {
-                if (__instance is Speaker || __instance is ISoundAlert)
-                {
-                    AudioLib.greenLog("START POSTFIX SerializeOnJoin");
-
-                    if (__instance == null || writer == null)
-                    {
-                        AudioLib.errorLog("Instance or writer is null.");
-                        return;
-                    }
-                    if (__instance is not Speaker && __instance is not AdvancedSuit && __instance is not AdvancedTablet)
-                    {
-                        AudioLib.yellowLog("Instance unknow type.");
-                        return;
-                    }
-                    int modeIndex = 0;
-                    if (__instance is Speaker)
-                    {
-                        modeIndex = (__instance as Speaker).Mode;
-                    }
-                    else if (__instance is AdvancedSuit)
-                    {
-                        modeIndex = (__instance as AdvancedSuit).SoundAlert;
-                    }
-                    else if (__instance is AdvancedTablet)
-                    {
-                        modeIndex = (__instance as AdvancedTablet).SoundAlert;
-                    }
-                    if (modeIndex != 0)
-                    {
-                        writer.WriteInt32(modeIndex);
-                    }
-                    AudioLib.greenLog("END SerializeOnJoin");
-                }
-            }
-            catch (Exception ex)
-            {
-                AudioLib.errorLog($"Error SerializeOnJoin : {ex.Message}\n{ex.StackTrace}");
-            }
-        }
-    }*/
-                }
+}

@@ -16,6 +16,7 @@ using Assets.Scripts.Objects.Clothing;
 using Assets.Scripts.Sound;
 using Assets.Scripts.Serialization;
 using Assets.Scripts.UI;
+using Assets.Scripts.Networking;
 using UnityEngine;
 using UnityEngine.Networking;
 using Cysharp.Threading.Tasks;
@@ -99,9 +100,11 @@ namespace ImportSound.AudioLibSpace
             AudioSource.PlayClipAtPoint(clip, Vector3.zero);
         }
 
-        public static void saveSoundAlert(long refId, double value)
+        public static void saveSoundAlertDict(object instance, double value)
         {
+            long refId = (instance as Thing).ReferenceId;
             int cappedInt = DoubleToIntCapped(value);
+            int valByte = intCappedByte(cappedInt);
             if (ThingIDSoundAlertDict.ContainsKey(refId))
             {
                 ThingIDSoundAlertDict[refId] = cappedInt;
@@ -109,6 +112,36 @@ namespace ImportSound.AudioLibSpace
             else
             {
                 ThingIDSoundAlertDict.Add(refId, cappedInt);
+            }
+            setSoundAlert(instance, (byte)valByte);
+        }
+
+        public static void saveSoundAlertDict(object instance, int value)
+        {
+            long refId = (instance as Thing).ReferenceId;
+            int valByte = intCappedByte(value);
+            if (ThingIDSoundAlertDict.ContainsKey(refId))
+            {
+                ThingIDSoundAlertDict[refId] = value;
+            }
+            else
+            {
+                ThingIDSoundAlertDict.Add(refId, value);
+            }
+            setSoundAlert(instance, (byte)valByte);
+        }
+
+        public static int loadSoundAlertDict(object __instance)
+        {
+            if (ThingIDSoundAlertDict.ContainsKey((__instance as Thing).ReferenceId))
+            {
+                return ThingIDSoundAlertDict[(__instance as Thing).ReferenceId];
+            }
+            else
+            {
+                int val = (int)getSoundAlert(__instance);
+                saveSoundAlertDict(__instance, val);
+                return val;
             }
         }
 
@@ -241,7 +274,7 @@ namespace ImportSound.AudioLibSpace
             Debug.Log("<color=red>" + log + "</color>");
         }
 
-            public static void errorLog(string log)
+        public static void errorLog(string log)
         {
             Debug.LogError(log);
         }
@@ -309,6 +342,12 @@ namespace ImportSound.AudioLibSpace
             return valByte;
         }
 
+        public static int intCappedByte(int value)
+        {
+            int valByte = value > byte.MaxValue ? (int)1 : (value < 0 ? (int)0 : (int)value); //still sound 1 as placeholder
+            return valByte;
+        }
+
         public static PropertyInfo getSoundAlertField(object instance)
         {
             if (instance == null) return null;
@@ -321,6 +360,31 @@ namespace ImportSound.AudioLibSpace
             return soundAlertFieldInfo;
         }
 
+        public static PooledAudioSource get_playingAudio(object instance)
+        {
+            if (instance == null) return null;
+            FieldInfo _playingAudioFieldInfo = instance.GetType().GetField("_playingAudio", BindingFlags.Instance | BindingFlags.NonPublic);
+            if (_playingAudioFieldInfo == null)
+            {
+                AudioLib.errorLog("Property '_playingAudio' not found or not readable in ISoundAlert");
+                return null;
+            }
+            PooledAudioSource playingAudio = (PooledAudioSource)_playingAudioFieldInfo.GetValue(instance);
+            return playingAudio;
+        }
+
+        public static FieldInfo get_soundVolumeField(object instance)
+        {
+            if (instance == null) return null;
+            FieldInfo SoundVolumeFieldInfo = instance.GetType().GetField("_soundVolume", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            if (SoundVolumeFieldInfo == null)
+            {
+                AudioLib.errorLog("Property '_soundVolume' not found or not readable in ISoundAlert");
+                return null;
+            }
+            return SoundVolumeFieldInfo;
+        }
+
         public static byte getSoundAlert(object instance)
         {
             PropertyInfo soundAlertPropInfo = getSoundAlertField(instance);
@@ -329,6 +393,26 @@ namespace ImportSound.AudioLibSpace
                 return 1;
             }
             return (byte)soundAlertPropInfo.GetValue(instance);
+        }
+        /*
+        public static byte getSoundVolume(object instance)
+        {
+            FieldInfo soundVolumePropInfo = get_soundVolumeField(instance);
+            if (soundVolumePropInfo == null)
+            {
+                return 0;
+            }
+            return (byte)soundVolumePropInfo.GetValue(instance);
+        }*/
+
+        public static void setSoundVolume(object instance, byte val)
+        {
+            FieldInfo soundVolumePropInfo = get_soundVolumeField(instance);
+            if (soundVolumePropInfo == null)
+            {
+                return;
+            }
+            soundVolumePropInfo.SetValue(instance, val);
         }
 
         public static void setSoundAlert(object instance, byte soundAlert)
@@ -354,7 +438,27 @@ namespace ImportSound.AudioLibSpace
         {
             double valByte = DoubleToByteCapped(value);
             setSoundAlert(__instance, (byte)Mathf.Clamp((int)valByte, 0, Speaker.modeStrings.Length - 1));
-            saveSoundAlert((__instance as Thing).ReferenceId, value);
+            saveSoundAlertDict(__instance, value);
+        }
+
+        public static void setLogicValueSoundAlertINT(object __instance, int value)
+        {
+            int valByte = intCappedByte(value);
+            setSoundAlert(__instance, (byte)Mathf.Clamp((int)valByte, 0, Speaker.modeStrings.Length - 1));
+            saveSoundAlertDict(__instance as Thing, value);
+        }
+
+        public static void readSaveIntBinary(object __instance, RocketBinaryReader reader)
+        {
+            try
+            {
+                int soundAlertInt = reader.ReadInt32();
+                setLogicValueSoundAlertINT(__instance, AudioLib.getSoundAlert(__instance));
+            }
+            catch //End of file empty
+            {
+                setLogicValueSoundAlertINT(__instance, AudioLib.getSoundAlert(__instance));
+            }
         }
 
         #endregion
