@@ -4,6 +4,7 @@ using System;
 using System.Linq;
 using System.Collections.Generic;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Threading.Tasks;
 using System.IO;
 using System.Reflection;
@@ -23,6 +24,7 @@ using Cysharp.Threading.Tasks;
 using Audio;
 using Sound;
 using ImportSound.AudioManagerLibSpace;
+using ImportSound.Mod;
 using BepInEx.Configuration;
 
 namespace ImportSound.AudioLibSpace
@@ -50,10 +52,12 @@ namespace ImportSound.AudioLibSpace
     {
         public const byte DIGIT_INDEX = 8;
         public const byte DIGIT_INDEX_RESERVED = 3;//For player so they can push sounds between them between sessions
+        public static string[] SPEAKER_MODES = Speaker.modeStrings;
         public static ConfigEntry<bool> DebugVerbose;
         public static bool DEBUG_VERBOSE => DebugVerbose?.Value == true;
         public static Dictionary<string, ConfigEntry<bool>> DeleteConfigs = new();
         public static bool IsDeleteEnabled(string alert) => DeleteConfigs.TryGetValue(alert, out var entry) && entry.Value;
+        public static ConcurrentQueue<Action> MainThreadActions = new ConcurrentQueue<Action>();
 
 
         public static bool speakerStaticInitialized = false;
@@ -104,6 +108,7 @@ namespace ImportSound.AudioLibSpace
         {
             long refId = (instance as Thing).ReferenceId;
             int cappedInt = DoubleToIntCapped(value);
+            cappedInt = (int)Mathf.Clamp(cappedInt, 0, SPEAKER_MODES.Length - 1);
             int valByte = intCappedByte(cappedInt);
             if (ThingIDSoundAlertDict.ContainsKey(refId))
             {
@@ -114,6 +119,15 @@ namespace ImportSound.AudioLibSpace
                 ThingIDSoundAlertDict.Add(refId, cappedInt);
             }
             setSoundAlert(instance, (byte)valByte);
+            AudioLib.MainThreadActions.Enqueue(() => {
+                var thing = instance as Thing;
+                if (thing == null) return;
+                var extender = thing.GetComponent<SoundAlertExtender>();
+                if (extender != null)
+                    extender.soundAlertX = cappedInt;
+                else
+                    AudioLib.errorLog("saveSoundAlertDict: SoundAlertExtender not found");
+            });
         }
 
         public static void saveSoundAlertDict(object instance, int value)
@@ -129,6 +143,15 @@ namespace ImportSound.AudioLibSpace
                 ThingIDSoundAlertDict.Add(refId, value);
             }
             setSoundAlert(instance, (byte)valByte);
+            AudioLib.MainThreadActions.Enqueue(() => {
+                var thing = instance as Thing;
+                if (thing == null) return;
+                var extender = thing.GetComponent<SoundAlertExtender>();
+                if (extender != null)
+                    extender.soundAlertX = value;
+                else
+                    AudioLib.errorLog("saveSoundAlertDict: SoundAlertExtender not found on");
+            });
         }
 
         public static int loadSoundAlertDict(object __instance)
@@ -338,12 +361,14 @@ namespace ImportSound.AudioLibSpace
         public static double DoubleToByteCapped(double value)
         {
             int cappedInt = DoubleToIntCapped(value);
+            cappedInt = (int)Mathf.Clamp(cappedInt, 0, SPEAKER_MODES.Length - 1);
             double valByte = cappedInt > byte.MaxValue ? (double)1 : (cappedInt < 0 ? (double)0 : (double)cappedInt); //still sound 1 as placeholder
             return valByte;
         }
 
         public static int intCappedByte(int value)
         {
+            value = (int)Mathf.Clamp(value, 0, SPEAKER_MODES.Length - 1);
             int valByte = value > byte.MaxValue ? (int)1 : (value < 0 ? (int)0 : (int)value); //still sound 1 as placeholder
             return valByte;
         }
@@ -431,20 +456,18 @@ namespace ImportSound.AudioLibSpace
             {
                 value = 1; //still sound one as placeholder
             }
-            setSoundAlert(__instance, (byte)Mathf.Clamp((int)value, 0, Speaker.modeStrings.Length - 1));
+            setSoundAlert(__instance, (byte)Mathf.Clamp((int)value, 0, SPEAKER_MODES.Length - 1));
         }
 
         public static void setLogicValueSoundAlertINT(object __instance, double value)
         {
             double valByte = DoubleToByteCapped(value);
-            setSoundAlert(__instance, (byte)Mathf.Clamp((int)valByte, 0, Speaker.modeStrings.Length - 1));
             saveSoundAlertDict(__instance, value);
         }
 
         public static void setLogicValueSoundAlertINT(object __instance, int value)
         {
             int valByte = intCappedByte(value);
-            setSoundAlert(__instance, (byte)Mathf.Clamp((int)valByte, 0, Speaker.modeStrings.Length - 1));
             saveSoundAlertDict(__instance as Thing, value);
         }
 

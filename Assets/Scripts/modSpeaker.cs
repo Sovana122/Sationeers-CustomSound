@@ -281,6 +281,9 @@ namespace ImportSound.VoicePatcherSpace
                             AudioLib.errorLog("No AssociatedAudioEvents found in interractabde Mode.");
                             return;
                         }
+                        newGameAudioEventList = newGameAudioEventList //reorder like soundAlert enum
+                            .OrderBy(ev => ev.Conditions.FirstOrDefault(cond => cond.Type == InteractableType.Mode)?.Value ?? int.MaxValue)
+                            .ToList();
                         List<GameAudioClipsData> importedGameAudioClipsData = AudioManagerLib.GetClipsDataByNamePrefix(AudioLib.getName(FolderEnum.ALARM));
 
                         removeAudioEvent(newGameAudioEventList, importedGameAudioClipsData);
@@ -303,6 +306,7 @@ namespace ImportSound.VoicePatcherSpace
                             AudioLib.printObj(newModes);
                             newModes.Insert(0, "None");
                             set_modeStrings(newModes);
+                            AudioLib.SPEAKER_MODES = newModes.ToArray();
                             reInitModeHashes();
                             AudioLib.speakerStaticInitialized = true;
                         }

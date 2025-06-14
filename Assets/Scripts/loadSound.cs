@@ -391,6 +391,9 @@ namespace ImportSound.CustomSoundManagerSpace
         {
             List<GameAudioClipsData> importedGameAudioClipsData = AudioManagerLib.GetClipsDataByNamePrefix(AudioLib.getName(FolderEnum.ALARM));
             Dictionary<int, GameAudioClipsData> dicGameAudioClipsData = AudioManagerLib.GetClipsDataSoundAlertLookup();
+            dicGameAudioClipsData = dicGameAudioClipsData //reorder like soundAlert enum
+                .OrderBy(kvp => kvp.Key)
+                .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
             List<GameAudioClipsData> newClipsData = dicGameAudioClipsData.Values.ToList();
             removeAudioClipsData(newClipsData, importedGameAudioClipsData);
             importedGameAudioClipsData = AudioLib.getNotFlag(importedGameAudioClipsData, AudioLib.FlagNames[FlagEnum.DELETE]);
