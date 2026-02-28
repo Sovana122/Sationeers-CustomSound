@@ -133,14 +133,15 @@ namespace ImportSound.AudioLibSpace
         public static void saveSoundAlertDict(object instance, int value)
         {
             long refId = (instance as Thing).ReferenceId;
+            int cappedInt = (int)Mathf.Clamp(value, 0, SPEAKER_MODES.Length - 1);
             int valByte = intCappedByte(value);
             if (ThingIDSoundAlertDict.ContainsKey(refId))
             {
-                ThingIDSoundAlertDict[refId] = value;
+                ThingIDSoundAlertDict[refId] = cappedInt;
             }
             else
             {
-                ThingIDSoundAlertDict.Add(refId, value);
+                ThingIDSoundAlertDict.Add(refId, cappedInt);
             }
             setSoundAlert(instance, (byte)valByte);
             AudioLib.MainThreadActions.Enqueue(() => {
@@ -148,7 +149,7 @@ namespace ImportSound.AudioLibSpace
                 if (thing == null) return;
                 var extender = thing.GetComponent<SoundAlertExtender>();
                 if (extender != null)
-                    extender.soundAlertX = value;
+                    extender.soundAlertX = cappedInt;
                 else
                     AudioLib.errorLog("saveSoundAlertDict: SoundAlertExtender not found on");
             });
@@ -462,13 +463,13 @@ namespace ImportSound.AudioLibSpace
         public static void setLogicValueSoundAlertINT(object __instance, double value)
         {
             double valByte = DoubleToByteCapped(value);
-            saveSoundAlertDict(__instance, value);
+            saveSoundAlertDict(__instance, valByte);
         }
 
         public static void setLogicValueSoundAlertINT(object __instance, int value)
         {
             int valByte = intCappedByte(value);
-            saveSoundAlertDict(__instance as Thing, value);
+            saveSoundAlertDict(__instance as Thing, valByte);
         }
 
         public static void readSaveIntBinary(object __instance, RocketBinaryReader reader)
